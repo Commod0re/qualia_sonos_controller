@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 
-INSTALL_PREFIX := $(shell mount | awk '/CIRCUITPY/ {print $3}')
+INSTALL_PREFIX := $(shell mount | awk '/CIRCUITPY/ {print $$3}')
 REQUIRES := biplane
 
 
@@ -13,5 +13,5 @@ circup:
 
 
 install:
-	$(abort NOT_IMPLEMENTED)
-
+	rsync -avuc src/ $(INSTALL_PREFIX)
+	sync
