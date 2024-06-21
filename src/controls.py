@@ -79,4 +79,5 @@ class AnoRotary:
             if cur_pos != pos:
                 pos = cur_pos
                 self.events['encoder'].set()
-            await asyncio.sleep_ms(50)
+            while self.events['encoder'].is_set():
+                await asyncio.sleep_ms(10)
