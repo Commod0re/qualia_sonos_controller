@@ -156,11 +156,7 @@ async def main():
             player_room_name = player.room_name
             print(f'room name = "{player_room_name}"')
             if player_room_name == 'Mike’s Office':
-                try:
-                    await player.state()
-                except KeyError:
-                    pass
-                else:
+                if await player.current_track_info() is not None:
                     player_found = True
                     break
 
