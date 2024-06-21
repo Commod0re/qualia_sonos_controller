@@ -59,15 +59,18 @@ class AnoRotary:
             button_mask |= mask
             last_states[name] = mask
         self.seesaw.pin_mode_bulk(button_mask, self.seesaw.INPUT_PULLUP)
+        last_full_state = self.seesaw.digital_read_bulk(button_mask)
         while True:
             full_state = self.seesaw.digital_read_bulk(button_mask)
-            for mask, name in button_map.items():
-                new_state = full_state & mask
-                if new_state != last_states[name]:
-                    direction = 'release' if new_state else 'press'
-                    print(f'{name}_{direction}')
-                    self.events[f'{name}_{direction}'].set()
-                    last_states[name] = new_state
+            if full_state != last_full_state:
+                for mask, name in button_map.items():
+                    new_state = full_state & mask
+                    if new_state != last_states[name]:
+                        direction = 'release' if new_state else 'press'
+                        print(f'{name}_{direction}')
+                        self.events[f'{name}_{direction}'].set()
+                        last_states[name] = new_state
+                last_full_state = full_state
 
             await asyncio.sleep_ms(300)
 
