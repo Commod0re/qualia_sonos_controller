@@ -72,7 +72,7 @@ class AnoRotary:
                         last_states[name] = new_state
                 last_full_state = full_state
 
-            await asyncio.sleep_ms(300)
+            await asyncio.sleep_ms(100)
 
     async def _poll_position(self):
         self.encoder = encoder = rotaryio.IncrementalEncoder(self.seesaw)
