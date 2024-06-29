@@ -210,8 +210,8 @@ class Sonos:
 
     async def current_track_info(self):
         res = await self._upnp_control('AVTransport', 'GetPositionInfo', Channel='Master', InstanceID=0)
-        if not res:
-            return None        
+        if not res or ('TrackMetaData', 0) not in res:
+            return None
         trackmetaxml = htmldecode(res['TrackMetaData', 0])
         if trackmetaxml == 'NOT_IMPLEMENTED':
             return None
