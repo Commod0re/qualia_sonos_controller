@@ -16,13 +16,20 @@ def fmt_bssid(bssid):
     return ':'.join(f'{b:02x}' for b in bssid)
 
 
+async def wifi_disconnected():
+    while True:
+        await asyncio.sleep(1)
+        if not wifi.radio.connected:
+            return
+
+
 async def wifi_roaming():
     ssid = os.getenv('CIRCUITPY_WIFI_SSID')
     psk = os.getenv('CIRCUITPY_WIFI_PASSWORD')
     no_network = collections.namedtuple('Network', ['bssid', 'rssi'])(b'\x00\x00\x00\x00', -100)
     while True:
         # roam-scan less frequently than (re)connect-scan
-        await asyncio.sleep(300 if wifi.radio.connected else 1)
+        await asyncio.wait_for(wifi_disconnected(), timeout=300)
 
         if not wifi.radio.connected:
             print('wifi not connected; scanning for APs to connect to')
