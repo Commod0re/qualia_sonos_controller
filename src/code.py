@@ -1,5 +1,6 @@
 import asyncio
 import board
+import collections
 import os
 import supervisor
 import wifi
@@ -10,31 +11,32 @@ import display
 import ssdp
 
 
+def fmt_bssid(bssid):
+    return ':'.join(f'{b:02x}' for b in bssid)
+
+
 async def connect_wifi():
-    ssid = os.getenv('CIRCUITPY_WIFI_SSID')
-    psk = os.getenv('CIRCUITPY_WIFI_PASSWORD')
+    ssid = os.getenv('WIFI_SSID')
+    psk = os.getenv('WIFI_PASSWORD')
+    best = collections.namedtuple('Network', ['ssid', 'bssid', 'rssi'])(ssid, b'\x00\x00\x00\x00', -100)
     while not wifi.radio.connected:
-        print('wifi not connected, attempting to reconnect')
-        try:
-            wifi.radio.connect(ssid, psk)
-        except ConnectionError:
-            # ssid not found. try a scan
-            try:
-                networks = wifi.radio.start_scanning_networks()
-            except RuntimeError:
-                wifi.radio.stop_scanning_networks()
-                await asyncio.sleep(0.100)
-                networks = wifi.radio.start_scanning_networks()
-            print('scanning...')
-            await asyncio.sleep(10)
-            found = {network.ssid for network in networks}
-            wifi.radio.stop_scanning_networks()
-            if ssid in found:
-                print(f'{ssid} found, retrying')
+        print(f'wifi not connected; scanning for APs broadcasting {ssid}')
+        for net in wifi.radio.start_scanning_networks():
+            if net.ssid == ssid and net.rssi > best.rssi:
+                best = net
+        wifi.radio.stop_scanning_networks()
+
+        if best.rssi > -100:
+            print(f'connecting to {fmt_bssid(best.bssid)} ({best.rssi})')
+            wifi.radio.connect(
+                ssid, psk,
+                bssid=best.bssid
+            )
+
+        await asyncio.sleep(1)
         if wifi.radio.connected:
             print('wifi connected')
-        await asyncio.sleep(1)
-
+    await asyncio.sleep(0)
 
 
 async def keep_wifi_connected():
@@ -136,7 +138,7 @@ async def wrap_handler(name, func, *args, **kwargs):
 async def main():
     loop = asyncio.get_event_loop()
 
-    print('monitoring wifi')
+    print('connecting wifi')
     await connect_wifi()
     loop.create_task(keep_wifi_connected())
 
