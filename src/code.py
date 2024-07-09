@@ -1,9 +1,6 @@
 import asyncio
-import board
 import collections
 import os
-import supervisor
-import time
 import wifi
 
 import asonos
