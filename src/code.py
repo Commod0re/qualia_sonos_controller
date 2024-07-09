@@ -3,6 +3,7 @@ import board
 import collections
 import os
 import supervisor
+import time
 import wifi
 
 import asonos
@@ -15,34 +16,32 @@ def fmt_bssid(bssid):
     return ':'.join(f'{b:02x}' for b in bssid)
 
 
-async def connect_wifi():
-    ssid = os.getenv('WIFI_SSID')
-    psk = os.getenv('WIFI_PASSWORD')
-    best = collections.namedtuple('Network', ['ssid', 'bssid', 'rssi'])(ssid, b'\x00\x00\x00\x00', -100)
-    while not wifi.radio.connected:
-        print(f'wifi not connected; scanning for APs broadcasting {ssid}')
+async def wifi_roaming():
+    ssid = os.getenv('CIRCUITPY_WIFI_SSID')
+    psk = os.getenv('CIRCUITPY_WIFI_PASSWORD')
+    no_network = collections.namedtuple('Network', ['bssid', 'rssi'])(b'\x00\x00\x00\x00', -100)
+    while True:
+        # roam-scan less frequently than (re)connect-scan
+        await asyncio.sleep(300 if wifi.radio.connected else 1)
+
+        if not wifi.radio.connected:
+            print('wifi not connected; scanning for APs to connect to')
+
+        network = wifi.radio.ap_info or no_network
+
         for net in wifi.radio.start_scanning_networks():
-            if net.ssid == ssid and net.rssi > best.rssi:
-                best = net
+            if net.ssid == ssid and net.rssi > network.rssi:
+                network = net
         wifi.radio.stop_scanning_networks()
 
-        if best.rssi > -100:
-            print(f'connecting to {fmt_bssid(best.bssid)} ({best.rssi})')
-            wifi.radio.connect(
-                ssid, psk,
-                bssid=best.bssid
-            )
+        if (wifi.radio.ap_info or no_network).bssid != network.bssid:
+            verb = 'roaming' if wifi.radio.connected else 'connecting'
+            print(f'{verb} to {fmt_bssid(network.bssid)} ({network.rssi})')
+            wifi.radio.stop_station()
+            wifi.radio.connect(ssid, psk, channel=network.channel, bssid=network.bssid)
 
-        await asyncio.sleep(1)
-        if wifi.radio.connected:
-            print('wifi connected')
-    await asyncio.sleep(0)
-
-
-async def keep_wifi_connected():
-    while True:
-        await connect_wifi()
-        await asyncio.sleep(1)
+            if wifi.radio.connected:
+                print('wifi connected')
 
 
 async def play_pause(player, ev):
@@ -138,9 +137,10 @@ async def wrap_handler(name, func, *args, **kwargs):
 async def main():
     loop = asyncio.get_event_loop()
 
-    print('connecting wifi')
-    await connect_wifi()
-    loop.create_task(keep_wifi_connected())
+    print('managing wifi')
+    # await connect_wifi()
+    # loop.create_task(keep_wifi_connected())
+    loop.create_task(wifi_roaming())
 
     print('locating sonoses')
     # TODO: monitor players over time
