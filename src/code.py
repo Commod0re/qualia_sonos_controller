@@ -26,7 +26,10 @@ async def wifi_roaming():
     no_network = collections.namedtuple('Network', ['bssid', 'rssi'])(b'\x00\x00\x00\x00', -100)
     while True:
         # roam-scan less frequently than (re)connect-scan
-        await asyncio.wait_for(wifi_disconnected(), timeout=300)
+        try:
+            await asyncio.wait_for(wifi_disconnected(), timeout=300)
+        except TimeoutError:
+            pass
 
         if not wifi.radio.connected:
             print('wifi not connected; scanning for APs to connect to')
