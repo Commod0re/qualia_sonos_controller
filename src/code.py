@@ -36,6 +36,7 @@ async def wifi_roaming():
 
         network = wifi.radio.ap_info or no_network
 
+        # my kingdom for an asyncio version of this
         for net in wifi.radio.start_scanning_networks():
             if net.ssid == ssid and net.rssi > network.rssi:
                 network = net
