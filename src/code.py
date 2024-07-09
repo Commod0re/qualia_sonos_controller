@@ -28,7 +28,7 @@ async def wifi_roaming():
         # roam-scan less frequently than (re)connect-scan
         try:
             await asyncio.wait_for(wifi_disconnected(), timeout=300)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             pass
 
         if not wifi.radio.connected:
