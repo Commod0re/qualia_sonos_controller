@@ -34,9 +34,10 @@ async def wifi_roaming():
         if not wifi.radio.connected:
             print('wifi not connected; scanning for APs to connect to')
 
-        network = wifi.radio.ap_info or no_network
+        cur_network = wifi.radio.ap_info or no_network
 
         # my kingdom for an asyncio version of this
+        network = cur_network
         for net in wifi.radio.start_scanning_networks():
             if net.ssid == ssid and net.rssi > network.rssi:
                 network = net
@@ -44,7 +45,8 @@ async def wifi_roaming():
 
         await asyncio.sleep(0)
 
-        if (wifi.radio.ap_info or no_network).bssid != network.bssid:
+        # this isn't fast roaming so only roam if it's really worth it
+        if cur_network.bssid != network.bssid and (network.rssi - cur_network.rssi) >= 3:
             verb = 'roaming' if wifi.radio.connected else 'connecting'
             print(f'{verb} to {fmt_bssid(network.bssid)} ({network.rssi})')
             wifi.radio.stop_station()
