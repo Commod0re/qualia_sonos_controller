@@ -45,8 +45,11 @@ async def wifi_roaming():
 
         await asyncio.sleep(0)
 
+        if network.bssid == cur_network.bssid:
+            continue
+
         # this isn't fast roaming so only roam if it's really worth it
-        if cur_network.bssid != network.bssid and (network.rssi - cur_network.rssi) >= 3:
+        if cur_network is no_network or (network.rssi - cur_network.rssi) >= 3:
             verb = 'roaming' if wifi.radio.connected else 'connecting'
             print(f'{verb} to {fmt_bssid(network.bssid)} ({network.rssi})')
             wifi.radio.stop_station()
