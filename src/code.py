@@ -165,6 +165,9 @@ async def main():
     checked = set()
     while not player_found:
         async for ssdp_parsed in ssdp.discover():
+            if ssdp_parsed['ip'] in checked:
+                continue
+            checked.add(ssdp_parsed['ip'])
             print(f'checking player at {ssdp_parsed["ip"]}')
             # print(ssdp_parsed)
             # player = babysonos.Sonos(ssdp_parsed)
