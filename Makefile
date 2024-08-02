@@ -2,7 +2,15 @@
 
 
 INSTALL_PREFIX := $(shell mount | awk '/CIRCUITPY/ {print $$3}')
-REQUIRES := biplane
+ifneq ($(INSTALL_PREFIX),)
+RP = (
+LP = )
+C = ,
+MOUNT_OPTIONS := $(subst $(C), ,$(subst $(LP),,$(subst $(RP),,$(shell mount | awk '/CIRCUITPY/ {print $$6}'))))
+else
+MOUNT_OPTIONS :=
+endif
+REQUIRES := biplane circuitpython_functools
 
 
 
@@ -13,5 +21,7 @@ circup:
 
 
 install:
+	$(if $(INSTALL_PREFIX),,$(error qualia not mounted))
+	$(if $(filter rw,$(MOUNT_OPTIONS)),,$(error qualia not mounted rw))
 	rsync -avuc src/ $(INSTALL_PREFIX)
 	sync
