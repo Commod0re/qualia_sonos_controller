@@ -20,6 +20,26 @@ async def wifi_disconnected():
             return
 
 
+def task_restart(name):
+    def wrapper(func):
+        async def wrapped(*args, **kwargs):
+            while True:
+                try:
+                    await func(*args, **kwargs)
+
+                except asyncio.CancelledError:
+                    break
+
+                except Exception as e:
+                    print(f'[{name}] caught unhandled exception {type(e).__name__}')
+                    print(e)
+                    await asyncio.sleep_ms(10)
+
+        return wrapped
+    return wrapper
+
+
+@task_restart('wifi_roaming')
 async def wifi_roaming():
     ssid = os.getenv('CIRCUITPY_WIFI_SSID')
     psk = os.getenv('CIRCUITPY_WIFI_PASSWORD')
@@ -59,6 +79,7 @@ async def wifi_roaming():
                 print('wifi connected')
 
 
+@task_restart('play_pause')
 async def play_pause(player, ev):
     while True:
         await ev.wait()
@@ -73,6 +94,7 @@ async def play_pause(player, ev):
             await player.pause()
 
 
+@task_restart('prev')
 async def prev(player, ev):
     while True:
         await ev.wait()
@@ -81,6 +103,7 @@ async def prev(player, ev):
         await player.prev()
 
 
+@task_restart('next')
 async def next(player, ev):
     while True:
         await ev.wait()
@@ -89,6 +112,7 @@ async def next(player, ev):
         await player.next()
 
 
+@task_restart('volume')
 async def volume(player, cntrl, ev):
     # get initial position for delta tracking
     pos = cntrl.encoder.position
@@ -112,7 +136,7 @@ async def volume(player, cntrl, ev):
         pos = cur_pos
         ev.clear()
 
-
+@task_restart('monitor_current_track')
 async def monitor_current_track(player):
     state = None
     track = {}
@@ -138,15 +162,6 @@ async def monitor_current_track(player):
                     idle = 10
 
         await asyncio.sleep(idle)
-
-
-async def wrap_handler(name, func, *args, **kwargs):
-    while True:
-        try:
-            await func(*args, **kwargs)
-        except Exception as e:
-            print(f'[{name}] caught {type(e).__name__}: {e}')
-
 
 
 async def main():
@@ -187,16 +202,11 @@ async def main():
     ano = controls.AnoRotary(display.qualia.graphics.i2c_bus)
 
     print('connecting event handlers')
-    # loop.create_task(monitor_current_track(player))
-    loop.create_task(wrap_handler('monitor_current_track', monitor_current_track, player))
-    # loop.create_task(play_pause(player, ano.events['select_press']))
-    loop.create_task(wrap_handler('play_pause', play_pause, player, ano.events['select_press']))
-    # loop.create_task(prev(player, ano.events['left_press']))
-    loop.create_task(wrap_handler('prev', prev, player, ano.events['left_press']))
-    # loop.create_task(next(player, ano.events['right_press']))
-    loop.create_task(wrap_handler('next', next, player, ano.events['right_press']))
-    # loop.create_task(volume(player, ano, ano.events['encoder']))
-    loop.create_task(wrap_handler('volume', volume, player, ano, ano.events['encoder']))
+    loop.create_task(monitor_current_track(player))
+    loop.create_task(play_pause(player, ano.events['select_press']))
+    loop.create_task(prev(player, ano.events['left_press']))
+    loop.create_task(next(player, ano.events['right_press']))
+    loop.create_task(volume(player, ano, ano.events['encoder']))
 
     print('ready')
 
