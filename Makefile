@@ -10,7 +10,7 @@ MOUNT_OPTIONS := $(subst $(C), ,$(subst $(LP),,$(subst $(RP),,$(shell mount | aw
 else
 MOUNT_OPTIONS :=
 endif
-REQUIRES := biplane circuitpython_functools
+REQUIRES := biplane
 
 
 
