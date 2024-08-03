@@ -33,7 +33,8 @@ def task_restart(name):
                 except Exception as e:
                     print(f'[{name}] caught unhandled exception {type(e).__name__}')
                     print(e)
-                    await asyncio.sleep_ms(10)
+
+                await asyncio.sleep_ms(10)
 
         return wrapped
     return wrapper
@@ -135,6 +136,7 @@ async def volume(player, cntrl, ev):
             await player.volume(new_vol)
         pos = cur_pos
         ev.clear()
+
 
 @task_restart('monitor_current_track')
 async def monitor_current_track(player):
