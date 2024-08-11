@@ -9,6 +9,8 @@ from socketpool import SocketPool
 import babyxml
 
 
+DEFAULT_TIMEOUT = 60
+
 pool = SocketPool(wifi.radio)
 
 
@@ -110,7 +112,6 @@ class Response:
             if not self._xml:
                 self._xml = babyxml.xmltodict(self.body)
             return self._xml
-        
 
 
 async def request(verb, url, headers, body=None):
@@ -175,9 +176,9 @@ async def request(verb, url, headers, body=None):
     return Response.from_response(request_info, response_buf)
 
 
-async def get(url, headers, body=None):
-    return await request('GET', url, headers, body=body)
+async def get(url, headers, body=None, timeout=DEFAULT_TIMEOUT):
+    return await asyncio.wait_for(request('GET', url, headers, body=body), timeout)
 
 
-async def post(url, headers, body=None):
-    return await request('POST', url, headers, body=body)
+async def post(url, headers, body=None, timeout=DEFAULT_TIMEOUT):
+    return await asyncio.wait_for(request('POST', url, headers, body=body), timeout)
