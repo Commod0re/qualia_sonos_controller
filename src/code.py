@@ -193,6 +193,7 @@ async def main():
             player_room_name = player.room_name
             print(f'room name = "{player_room_name}"')
             if player_room_name == 'Mike’s Office':
+                player_found = True
                 break
 
     print(f'player "{player_room_name}" located at {player.ip}')
