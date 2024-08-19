@@ -63,7 +63,7 @@ class Sonos:
 
     @property
     def household_id(self):
-        return self.household_id
+        return self._household_id
 
     @property
     def device_info(self):
