@@ -70,6 +70,10 @@ class Sonos:
         return self._device_info
 
     @property
+    def zone_attributes(self):
+        return self._zone_attrs
+
+    @property
     def room_name(self):
         return self.device_info['device', 0]['roomName', 0]
 
@@ -79,6 +83,7 @@ class Sonos:
         # if we got here from UPnP or cache
         self._base = kwargs.get('base') or f'http://{ip}:1400'
         self._device_info = kwargs.get('device_info')
+        self._zone_attrs = {}
         self._household_id = kwargs.get('household_id')
         self._service_urls = kwargs.get('service_urls', {})
         self._service_schemas = kwargs.get('service_schemas', {})
@@ -90,15 +95,24 @@ class Sonos:
 
     async def connect(self):
         # load device info if needed
+        # this must come before anything that calls self._upnp_control
         if not self.device_info:
             self._device_info = await self.get_device_info()
+
+        tasks = []
         # map service urls if needed
         if not self._service_urls:
-            await self._map_services()
+            tasks.append(self._map_services())
+
+        # get zone attrs if needed
+        if not self._zone_attrs:
+            tasks.append(self._get_zone_attrs())
+
         # TODO: subscribe to events
         # await self.subscribe('AVTransport')
         # await self.subscribe('Queue')
         # TODO: what else
+        await asyncio.gather(*tasks)
 
     async def subscribe(self, service):
         # TODO: hook up an Event
@@ -152,6 +166,13 @@ class Sonos:
             for service in service_list(device):
                 map_service(service)
 
+    async def _get_zone_attrs(self):
+        attrs = await self.get_zone_group_attributes()
+        # guaranteed to exist
+        if not self._household_id:
+            self._household_id = attrs['CurrentMuseHouseholdId', 0]
+        self._zone_attrs.update(attrs)
+
     async def _upnp_control(self, service, action, **arguments):
         soap_headers = {
             'Content-Type': 'text/xml; charset="utf-8"',
@@ -178,6 +199,12 @@ class Sonos:
         if envelope_response := envelope_body.get((f'u:{action}Response', 0)):
             return envelope_response
         return envelope_body
+
+    async def get_zone_group_attributes(self):
+        res = await self._upnp_control('ZoneGroupTopology', 'GetZoneGroupAttributes')
+        if res:
+            return res
+        return None
 
     async def state(self):
         res = await self._upnp_control('AVTransport', 'GetTransportInfo', InstanceID=0)

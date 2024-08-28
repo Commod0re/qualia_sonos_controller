@@ -192,7 +192,7 @@ async def main():
             await player.connect()
             player_room_name = player.room_name
             print(f'room name = "{player_room_name}"')
-            if player_room_name == 'Mike’s Office':
+            if player_room_name == 'Mike’s Office' and ('CurrentZoneGroupID', 0) in player.zone_attributes:
                 player_found = True
                 break
 
