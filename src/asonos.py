@@ -222,7 +222,6 @@ class Sonos:
             await self._upnp_control('RenderingControl', 'SetVolume', Channel='Master', DesiredVolume=new_vol, InstanceID=0)
             return new_vol
 
-
     async def play(self):
         await self._upnp_control('AVTransport', 'Play', Speed=1, InstanceID=0)
 
@@ -248,7 +247,7 @@ class Sonos:
             'title': htmldecode(trackmeta['item', 0]['dc:title', 0]),
             'artist': trackmeta['item', 0]['dc:creator', 0],
             'album': trackmeta['item', 0]['upnp:album', 0],
-            'album_art': ''.join([self.base, trackmeta['item', 0]['upnp:albumArtURI', 0].replace('&amp;', '&')]),
+            'album_art': ''.join([self.base, htmldecode(trackmeta['item', 0]['upnp:albumArtURI', 0])]),
             'position': res['RelTime', 0],
             'duration': res['TrackDuration', 0],
             'queue_position': int(res['Track', 0]) - 1,
@@ -270,7 +269,7 @@ class Sonos:
                 'artist': item['dc:creator', 0],
                 'album': item['upnp:album', 0],
                 'album_art': ''.join((self.base, htmldecode(item['upnp:albumArtURI', 0]))),
-                'duration': item['res_attrs']['duration'],
+                'duration': item['res_attrs', 0]['duration'],
                 'queue_position': offset + idx,
             })
         return queue
