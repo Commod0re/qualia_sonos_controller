@@ -11,6 +11,7 @@ server = biplane.Server()
 serve_task = None
 sonos_client_registry = {}
 sonos_sid_registry = {}
+sonos_client_sid_registry = {}
 
 
 def htmldecode(text):
@@ -33,14 +34,18 @@ def root(params, headers, body):
 #     return biplane.Response(b'')
 @server.route('/', 'NOTIFY')
 def handle_notify(params, headers, body):
-    print(params)
-    print(headers)
-    # print(babyxml.xmltodict(body.decode('utf-8')))
+    sid = headers['sid']
+    service = headers['x-sonos-servicetype']
+    client = sonos_client_sid_registry[sid, service]
+
+    print(f'handling {service} event from {client}')
+    # print(params)
+    # print(headers)
     body = babyxml.xmltodict(body.decode('utf-8'))
     # print(body)
     last_change_raw = body['e:propertyset', 0]['e:property', 0]['LastChange', 0]
     # print(last_change_raw)
-    print(htmldecode(last_change_raw))
+    # print(htmldecode(last_change_raw))
     print(babyxml.xmltodict(htmldecode(last_change_raw)))
     return biplane.Response(b'OK')
 
@@ -108,10 +113,6 @@ class Sonos:
         if not self._zone_attrs:
             tasks.append(self._get_zone_attrs())
 
-        # TODO: subscribe to events
-        # await self.subscribe('AVTransport')
-        # await self.subscribe('Queue')
-        # TODO: what else
         await asyncio.gather(*tasks)
 
     async def subscribe(self, service):
@@ -125,12 +126,15 @@ class Sonos:
         }
         resp = await ahttp.request('SUBSCRIBE', url, headers)
         sonos_sid_registry[self.ip, service] = resp.headers['sid']
+        sonos_client_sid_registry[resp.headers['sid'], service] = self
         print(f'subscribed to events with sid={resp.headers["sid"]}')
 
     async def unsubscribe(self, service):
+        sid = sonos_sid_registry.pop((self.ip, service))
         del sonos_client_registry[self.ip, service]
+        del sonos_client_sid_registry[sid, service]
         headers = {
-            'SID': sonos_sid_registry.pop((self.ip, service)),
+            'SID': sid,
         }
         url = f'http://{self.ip}:1400{self._service_event_urls[service]}'
         resp = await ahttp.request('UNSUBSCRIBE', url, headers)
@@ -281,6 +285,8 @@ class Sonos:
 # loop = asyncio.new_event_loop()
 # sonos = Sonos('10.0.3.0')
 # loop.run_until_complete(sonos.connect())
+# print(sonos._service_event_urls.keys())
+# loop.run_until_complete(sonos.subscribe('AVTransport'))
 # loop.create_task(run_server())
 # loop.run_forever()
 
