@@ -166,37 +166,85 @@ async def monitor_current_track(player):
         await asyncio.sleep(idle)
 
 
+async def discover_sonos(player_map):
+    # player_map:
+    #   players:
+    #     mac: Sonos()
+    #   rooms:
+    #     room_name:
+    #       players:
+    #         mac:
+    #           player: Sonos()
+    #           model: name
+    #           icon: path
+    #       primary: Sonos()
+    def mac(usn):
+        return ':'.join(''.join(d) for d in zip(*[iter(usn[12:24])]*2))
+
+    def icons(device_list):
+        device_tags = sum(1 for n in device_list if n[0] == 'device')
+        for n in range(device_tags):
+            device = device_list['device', n]
+            if ('iconList', 0) in device:
+                return device['iconList', 0]
+
+    new_batch = []
+
+    if 'players' not in player_map:
+        player_map['players'] = {}
+    if 'rooms' not in player_map:
+        player_map['rooms'] = {}
+
+    # discover players
+    async for ssdp_parsed in ssdp.discover():
+        if ssdp_parsed.get('household_id', '').startswith('Sonos_'):
+            print(f'found player at {ssdp_parsed["ip"]}')
+            player_id = mac(ssdp_parsed['headers']['USN'])
+            if player_id not in player_map['players']:
+                new_batch.append(asonos.Sonos(**ssdp_parsed))
+
+    # connect to the new batch
+    await asyncio.gather(*(player.connect() for player in new_batch))
+
+    # map the new batch
+    for player in new_batch:
+        room_name = player.room_name
+        player_id = player.device_info['device', 0]['MACAddress', 0]
+        model_name = player.device_info['device', 0]['deviceList', 0]['device', 0]['modelName', 0]
+        icon_list = icons(player.device_info['device', 0]['deviceList', 0])
+
+        print(f'player at {player.ip} ({model_name}) belongs to room {room_name}')
+
+        player_map['players'][player_id] = player
+
+        if room_name not in player_map['rooms']:
+            player_map['rooms'][room_name] = {'players': {}, 'primary': None}
+
+        player_map['rooms'][room_name]['players'][player_id] = {
+            'player': player,
+            'model': model_name,
+            'icon': icon_list['icon', 0]['url', 0] if icon_list else '',
+        }
+
+        if ('CurrentZoneGroupID', 0) in player.zone_attributes:
+            player_map['rooms'][room_name]['primary'] = player
+
+
 async def main():
     loop = asyncio.get_event_loop()
 
     print('managing wifi')
-    # await connect_wifi()
-    # loop.create_task(keep_wifi_connected())
     loop.create_task(wifi_roaming())
 
     print('locating sonoses')
     # TODO: monitor players over time
     # TODO: make this selectable instead of hardcoded
-    # TODO: each room can have multiple players and that might matter somehow
-    player_found = False
-    checked = set()
-    while not player_found:
-        async for ssdp_parsed in ssdp.discover():
-            if ssdp_parsed['ip'] in checked:
-                continue
-            checked.add(ssdp_parsed['ip'])
-            print(f'checking player at {ssdp_parsed["ip"]}')
-            # print(ssdp_parsed)
-            # player = babysonos.Sonos(ssdp_parsed)
-            player = asonos.Sonos(**ssdp_parsed)
-            await player.connect()
-            player_room_name = player.room_name
-            print(f'room name = "{player_room_name}"')
-            if player_room_name == 'Mike’s Office' and ('CurrentZoneGroupID', 0) in player.zone_attributes:
-                player_found = True
-                break
+    players = {'players': {}, 'rooms': {}}
+    target_room = 'Mike’s Office'
+    while not players['rooms'].get(target_room, {}).get('primary'):
+        await discover_sonos(players)
 
-    print(f'player "{player_room_name}" located at {player.ip}')
+    player = players['rooms'][target_room]['primary']
 
     # TODO: why does it halt the entire process to do this above "locating sonoses"
     print('setting up controls')
