@@ -22,7 +22,6 @@ async def _sock():
             s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
         except RuntimeError:
             await asyncio.sleep(0.1)
-    s.setblocking(False)
     return s
 
 
@@ -152,8 +151,12 @@ async def request(verb, url, headers, body=None):
     # buf = bytearray(4096)
     resp = None
     sock = await _sock()
+    # set connection timeout
+    sock.settimeout(10)
     # connect
     sock.connect((host, port))
+    # now set nonblocking mode
+    sock.setblocking(False)
     # send request
     sock.send(request_raw)
 
