@@ -198,10 +198,12 @@ async def discover_sonos(player_map):
     # discover players
     async for ssdp_parsed in ssdp.discover():
         if ssdp_parsed.get('household_id', '').startswith('Sonos_'):
-            print(f'found player at {ssdp_parsed["ip"]}')
             player_id = mac(ssdp_parsed['headers']['USN'])
+            verb = 'existing'
             if player_id not in player_map['players']:
+                verb = 'found'
                 new_batch.append(asonos.Sonos(**ssdp_parsed))
+            print(f'{verb} player at {ssdp_parsed["ip"]}')
 
     # connect to the new batch
     await asyncio.gather(*(player.connect() for player in new_batch))
