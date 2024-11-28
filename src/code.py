@@ -205,11 +205,9 @@ async def discover_sonos(player_map):
                 new_batch.append(asonos.Sonos(**ssdp_parsed))
             print(f'{verb} player at {ssdp_parsed["ip"]}')
 
-    # connect to the new batch
-    await asyncio.gather(*(player.connect() for player in new_batch))
 
-    # map the new batch
-    for player in new_batch:
+    async def _connect(player):
+        await player.connect()
         room_name = player.room_name
         player_id = player.device_info['device', 0]['MACAddress', 0]
         model_name = player.device_info['device', 0]['deviceList', 0]['device', 0]['modelName', 0]
@@ -230,6 +228,9 @@ async def discover_sonos(player_map):
 
         if ('CurrentZoneGroupID', 0) in player.zone_attributes:
             player_map['rooms'][room_name]['primary'] = player
+
+    # connect to the new batch
+    await asyncio.gather(*(_connect(player) for player in new_batch))
 
 
 async def main():
