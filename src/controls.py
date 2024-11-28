@@ -12,11 +12,35 @@ ANO_BUTTON_MAP = {
 
 
 class AnoRotary:
-    def __init__(self, bus, addr=0x49):
+    @classmethod
+    async def new(cls, bus, addr=0x49):
+        # scan i2c bus for our device
+        while not bus.try_lock():
+            await asyncio.sleep(0.1)
+        if addr not in bus.scan():
+            raise Exception(f'no i2c device found at 0x{addr:02x}')
+        bus.unlock()
+
+        # initialize seesaw
+        ssw = seesaw.Seesaw(bus, addr=addr)
+
+        # initialize rotary encoder
+        encoder = rotaryio.IncrementalEncoder(ssw)
+
+        # instantiate AnoRotary obj
+        obj = cls(bus, addr, ssw, encoder)
+
+        # start monitor tasks
+        await obj._start_monitor()
+
+        return obj
+
+
+    def __init__(self, bus, addr, seesaw, encoder):
         self.i2c = bus
         self.addr = addr
-        self.seesaw = None
-        self.encoder = None
+        self.seesaw = seesaw
+        self.encoder = encoder
         # prepare events
         self.events = {
             f'{name}_{direction}': asyncio.Event()
@@ -25,23 +49,8 @@ class AnoRotary:
         }
         self.events['encoder'] = asyncio.Event()
 
-        # do async init
+    async def _start_monitor(self):
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self._init())
-
-    async def _init(self):
-        # get an asyncio loop reference
-        loop = asyncio.get_event_loop()
-
-        # scan i2c bus for our device
-        while not self.i2c.try_lock():
-            await asyncio.sleep(0.1)
-        if self.addr not in self.i2c.scan():
-            raise Exception(f'no i2c device found at 0x{self.addr:02x}')
-        self.i2c.unlock()
-
-        # initialize seesaw
-        self.seesaw = seesaw.Seesaw(self.i2c, addr=self.addr)
 
         # initialize button monitor tasks
         loop.create_task(self._poll_buttons())
@@ -75,7 +84,7 @@ class AnoRotary:
             await asyncio.sleep_ms(100)
 
     async def _poll_position(self):
-        self.encoder = encoder = rotaryio.IncrementalEncoder(self.seesaw)
+        encoder = self.encoder
         pos = encoder.position
         while True:
             cur_pos = encoder.position

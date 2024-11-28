@@ -238,6 +238,9 @@ async def main():
     print('managing wifi')
     loop.create_task(wifi_roaming())
 
+    print('setting up controls')
+    ano = await controls.AnoRotary.new(display.qualia.graphics.i2c_bus)
+
     print('locating sonoses')
     # TODO: monitor players over time
     # TODO: make this selectable instead of hardcoded
@@ -247,10 +250,6 @@ async def main():
         await discover_sonos(players)
 
     player = players['rooms'][target_room]['primary']
-
-    # TODO: why does it halt the entire process to do this above "locating sonoses"
-    print('setting up controls')
-    ano = controls.AnoRotary(display.qualia.graphics.i2c_bus)
 
     print('connecting event handlers')
     loop.create_task(monitor_current_track(player))
