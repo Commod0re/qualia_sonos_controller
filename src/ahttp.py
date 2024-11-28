@@ -22,7 +22,7 @@ async def _sock():
             s = pool.socket(SocketPool.AF_INET, SocketPool.SOCK_STREAM, SocketPool.IPPROTO_TCP)
             s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
         except RuntimeError:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep_ms(100)
     return s
 
 
@@ -155,7 +155,7 @@ async def request(verb, url, headers, body=None):
     # TODO: figure out why I can't connect in non-blocking mode with circuitpython 9.2.x
     #       this worked in 9.0.x
     # set connection timeout
-    sock.settimeout(2)
+    sock.settimeout(1)
     # connect
     sock.connect((host, port))
     # now set nonblocking mode
