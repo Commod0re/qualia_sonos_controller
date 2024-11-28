@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import io
 import json
 import time
@@ -151,8 +152,10 @@ async def request(verb, url, headers, body=None):
     # buf = bytearray(4096)
     resp = None
     sock = await _sock()
+    # TODO: figure out why I can't connect in non-blocking mode with circuitpython 9.2.x
+    #       this worked in 9.0.x
     # set connection timeout
-    sock.settimeout(10)
+    sock.settimeout(2)
     # connect
     sock.connect((host, port))
     # now set nonblocking mode
