@@ -155,7 +155,7 @@ async def request(verb, url, headers, body=None):
     # TODO: figure out why I can't connect in non-blocking mode with circuitpython 9.2.x
     #       this worked in 9.0.x
     # set connection timeout
-    sock.settimeout(1)
+    sock.settimeout(2)
     # connect
     sock.connect((host, port))
     # now set nonblocking mode
