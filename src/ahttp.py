@@ -2,7 +2,7 @@ import asyncio
 import errno
 import io
 import json
-import random
+import time
 import wifi
 from collections import namedtuple
 from socketpool import SocketPool
@@ -158,7 +158,9 @@ async def request(verb, url, headers, body=None):
 
     await asyncio.sleep(0)
     # connect
-    while True:
+    # real timeout = 60 seconds
+    connect_timeout_at = time.time() + 60
+    while time.time() <= connect_timeout_at:
         try:
             sock.connect((host, port))
         except OSError as e:
@@ -191,6 +193,9 @@ async def request(verb, url, headers, body=None):
         else:
             await asyncio.sleep(0)
             break
+
+    if time.time() > connect_timeout_at:
+        raise asyncio.TimeoutError(f'connection to {host}:{port} timed out')
 
     if not sent_request:
         # if we didn't do this already:
