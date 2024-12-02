@@ -269,22 +269,22 @@ async def main():
     # ui tasks
     loop.create_task(_status_ip())
 
-    # print('locating sonoses')
-    # # TODO: monitor players over time
-    # # TODO: make this selectable instead of hardcoded
-    # players = {'players': {}, 'rooms': {}}
-    # target_room = 'Mike’s Office'
-    # while not players['rooms'].get(target_room, {}).get('primary'):
-    #     await discover_sonos(players)
-    #
-    # player = players['rooms'][target_room]['primary']
-    #
-    # print('connecting event handlers')
-    # loop.create_task(monitor_current_track(player))
-    # loop.create_task(play_pause(player, ano.events['select_press']))
-    # loop.create_task(prev(player, ano.events['left_press']))
-    # loop.create_task(next(player, ano.events['right_press']))
-    # loop.create_task(volume(player, ano, ano.events['encoder']))
+    print('locating sonoses')
+    # TODO: monitor players over time
+    # TODO: make this selectable instead of hardcoded
+    players = {'players': {}, 'rooms': {}}
+    target_room = 'Mike’s Office'
+    while not players['rooms'].get(target_room, {}).get('primary'):
+        await discover_sonos(players)
+
+    player = players['rooms'][target_room]['primary']
+
+    print('connecting event handlers')
+    loop.create_task(monitor_current_track(player))
+    loop.create_task(play_pause(player, ano.events['select_press']))
+    loop.create_task(prev(player, ano.events['left_press']))
+    loop.create_task(next(player, ano.events['right_press']))
+    loop.create_task(volume(player, ano, ano.events['encoder']))
 
     print('ready')
 
