@@ -23,9 +23,9 @@ async def _sock():
             s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
         except RuntimeError:
             await asyncio.sleep_ms(100)
-    # TODO: why can't I connect at all with setblocking(False) anymore
-    # set short connection timeout
-    s.settimeout(0.100)
+    # this works fine on CircuitPython 9.0.x
+    # this does not work fine on CircuitPython >= 9.1.0
+    s.setblocking(False)
     return s
 
 
@@ -156,7 +156,6 @@ async def request(verb, url, headers, body=None):
     sent_request = False
     sock = await _sock()
 
-    await asyncio.sleep(0)
     # connect
     # real timeout = 60 seconds
     connect_timeout_at = time.time() + 60
@@ -164,8 +163,11 @@ async def request(verb, url, headers, body=None):
         try:
             sock.connect((host, port))
         except OSError as e:
-            await asyncio.sleep(0)
-            if e.errno == 116:
+            if e.errno == 113:
+                # ECONNABORTED - connection attempt aborted
+                sock.close()
+                sock = await _sock()
+            elif e.errno == 116:
                 # ETIMEDOUT - operation timed out, but, connection might be in progress
                 await asyncio.sleep_ms(100)
             elif e.errno == 119:
@@ -176,6 +178,7 @@ async def request(verb, url, headers, body=None):
                 await asyncio.sleep_ms(100)
             elif e.errno == 127:
                 # EISCONN - we may be connected
+                await asyncio.sleep(0)
                 # try sending the request. if that fails with BrokenPipeError,
                 # we aren't connected. start over
                 try:
@@ -188,22 +191,24 @@ async def request(verb, url, headers, body=None):
                 else:
                     sent_request = True
                     break
+            elif e.errno == 128:
+                # ENOTCONN - not connected; start over
+                sock.close()
+                sock = await _sock()
             else:
-                print(f'{host}:{port}', repr(e), errno.errorcode.get(e.errno))
+                print(f'[{datetime.now()}]{req_id}_{host}:{port}', repr(e), errno.errorcode.get(e.errno))
         else:
-            await asyncio.sleep(0)
             break
 
     if time.time() > connect_timeout_at:
         raise asyncio.TimeoutError(f'connection to {host}:{port} timed out')
 
     if not sent_request:
+        await asyncio.sleep(0)
         # if we didn't do this already:
         # send request
         sock.send(request_raw)
 
-    # switch to nonblocking mode
-    sock.setblocking(False)
 
     # await the response
     read_buf = bytearray(4096)
@@ -211,8 +216,8 @@ async def request(verb, url, headers, body=None):
     while True:
         try:
             read_nbytes, (host, port) = sock.recvfrom_into(read_buf)
-            if read_nbytes == 0:
-                # finished reading response
+            if read_nbytes == 0 and response_buf:
+                # possibly finished reading response
                 sock.close()
                 break
         except OSError as e:
