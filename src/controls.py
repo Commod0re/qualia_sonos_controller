@@ -1,5 +1,9 @@
 import asyncio
-from adafruit_seesaw import seesaw, digitalio, rotaryio
+import board
+import digitalio
+
+import adafruit_pca9554
+from adafruit_seesaw import seesaw, rotaryio
 
 
 ANO_BUTTON_MAP = {
@@ -10,16 +14,19 @@ ANO_BUTTON_MAP = {
     'right': 5,
 }
 
+async def _scan(bus, addr):
+    # scan i2c bus for our device
+    while not bus.try_lock():
+        await asyncio.sleep(0.1)
+    if addr not in bus.scan():
+        raise Exception(f'no i2c device found at 0x{addr:02x}')
+    bus.unlock()
+
 
 class AnoRotary:
     @classmethod
     async def new(cls, bus, addr=0x49):
-        # scan i2c bus for our device
-        while not bus.try_lock():
-            await asyncio.sleep(0.1)
-        if addr not in bus.scan():
-            raise Exception(f'no i2c device found at 0x{addr:02x}')
-        bus.unlock()
+        await _scan(bus, addr)
 
         # initialize seesaw
         ssw = seesaw.Seesaw(bus, addr=addr)
@@ -34,7 +41,6 @@ class AnoRotary:
         await obj._start_monitor()
 
         return obj
-
 
     def __init__(self, bus, addr, seesaw, encoder):
         self.i2c = bus
@@ -76,12 +82,11 @@ class AnoRotary:
                     new_state = full_state & mask
                     if new_state != last_states[name]:
                         direction = 'release' if new_state else 'press'
-                        print(f'{name}_{direction}')
                         self.events[f'{name}_{direction}'].set()
                         last_states[name] = new_state
                 last_full_state = full_state
 
-            await asyncio.sleep_ms(100)
+            await asyncio.sleep_ms(50)
 
     async def _poll_position(self):
         encoder = self.encoder
@@ -95,3 +100,48 @@ class AnoRotary:
                     await asyncio.sleep_ms(10)
             else:
                 await asyncio.sleep_ms(10)
+
+
+class QualiaButtons:
+    @classmethod
+    async def new(cls, bus, addr=0x3f):
+        await _scan(bus, addr)
+
+        pcf = adafruit_pca9554.PCA9554(bus, address=addr)
+        btn_dn = pcf.get_pin(board.BTN_DN)
+        btn_dn.switch_to_input(pull=digitalio.Pull.UP)
+
+        btn_up = pcf.get_pin(board.BTN_UP)
+        btn_up.switch_to_input(pull=digitalio.Pull.UP)
+
+        obj = cls(btn_dn, btn_up)
+        await obj._start_monitors()
+        return obj
+
+    def __init__(self, btn_dn, btn_up):
+        self._btn_dn = btn_dn
+        self._btn_up = btn_up
+        self.events = {
+            'up_press': asyncio.Event(),
+            'up_release': asyncio.Event(),
+            'dn_press': asyncio.Event(),
+            'dn_release': asyncio.Event(),
+        }
+
+    async def _start_monitors(self):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._poll_button(self._btn_dn, self.events['dn_press'], self.events['dn_release']))
+        loop.create_task(self._poll_button(self._btn_up, self.events['up_press'], self.events['up_release']))
+
+    async def _poll_button(self, btn, press, release):
+        last_state = btn.value
+        while True:
+            cur_state = btn.value
+            if cur_state != last_state:
+                if cur_state is False:
+                    press.set()
+                else:
+                    release.set()
+                last_state = cur_state
+
+            await asyncio.sleep_ms(50)
