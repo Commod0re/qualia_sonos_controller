@@ -148,30 +148,51 @@ async def request(verb, url, headers, body=None):
     request_raw = '\r\n'.join(request_lines).encode('utf-8')
 
 
-    # buf = bytearray(4096)
     resp = None
+    sent_request = False
     sock = await _sock()
-    # TODO: figure out why I can't connect in non-blocking mode with circuitpython 9.2.x
-    #       it worked in 9.0.x
-    # set connection timeout
-    sock.settimeout(1)
+    # set short connection timeout
+    sock.settimeout(0.100)
     # connect
     while True:
         try:
             sock.connect((host, port))
         except OSError as e:
+            if e.errno == 116:
+                # ETIMEDOUT - connection might be in progress
+                await asyncio.sleep_ms(100)
             if e.errno == 119:
                 # EINPROGRESS - connection is still in progress
                 await asyncio.sleep_ms(100)
+            elif e.errno == 120:
+                # EALREADY - a connection is already pending
+                await asyncio.sleep_ms(100)
             elif e.errno == 127:
-                # EISCONN - we are connected
-                break
+                # EISCONN - we may be connected
+                # set sock nonblocking and try sending the request
+                # if that fails with BrokenPipeError,
+                # we aren't connected. try again
+                try:
+                    # set nonblocking mode
+                    sock.setblocking(False)
+                    # send request
+                    sock.send(request_raw)
+                except BrokenPipeError:
+                    # jk - not connected! try again
+                    sock.close()
+                    sock = await _sock()
+                else:
+                    sent_request = True
+                    break
             else:
-                print(repr(e), errno.errorcode.get(e.errno))
-    # now set nonblocking mode
-    sock.setblocking(False)
-    # send request
-    sock.send(request_raw)
+                print(f'{host}:{port}', repr(e), errno.errorcode.get(e.errno))
+
+    if not sent_request:
+        # if we didn't do this already:
+        # set nonblocking mode
+        sock.setblocking(False)
+        # send request
+        sock.send(request_raw)
 
     # await the response
     read_buf = bytearray(4096)
