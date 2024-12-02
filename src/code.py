@@ -207,7 +207,11 @@ async def discover_sonos(player_map):
 
 
     async def _connect(player):
-        await player.connect()
+        try:
+            await player.connect()
+        except asyncio.TimeoutError:
+            print(f'TimeoutError connecting to {player.ip}')
+            return
         room_name = player.room_name
         player_id = player.device_info['device', 0]['MACAddress', 0]
         model_name = player.device_info['device', 0]['deviceList', 0]['device', 0]['modelName', 0]
