@@ -2,6 +2,7 @@ import asyncio
 import errno
 import io
 import json
+import random
 import wifi
 from collections import namedtuple
 from socketpool import SocketPool
@@ -22,6 +23,9 @@ async def _sock():
             s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
         except RuntimeError:
             await asyncio.sleep_ms(100)
+    # TODO: why can't I connect at all with setblocking(False) anymore
+    # set short connection timeout
+    s.settimeout(0.100)
     return s
 
 
@@ -151,30 +155,28 @@ async def request(verb, url, headers, body=None):
     resp = None
     sent_request = False
     sock = await _sock()
-    # set short connection timeout
-    sock.settimeout(0.100)
+
+    await asyncio.sleep(0)
     # connect
     while True:
         try:
             sock.connect((host, port))
         except OSError as e:
+            await asyncio.sleep(0)
             if e.errno == 116:
-                # ETIMEDOUT - connection might be in progress
+                # ETIMEDOUT - operation timed out, but, connection might be in progress
                 await asyncio.sleep_ms(100)
             if e.errno == 119:
-                # EINPROGRESS - connection is still in progress
+                # EINPROGRESS - connection is currently in progress
                 await asyncio.sleep_ms(100)
             elif e.errno == 120:
-                # EALREADY - a connection is already pending
+                # EALREADY - connection is already pending
                 await asyncio.sleep_ms(100)
             elif e.errno == 127:
                 # EISCONN - we may be connected
-                # set sock nonblocking and try sending the request
-                # if that fails with BrokenPipeError,
-                # we aren't connected. try again
+                # try sending the request. if that fails with BrokenPipeError,
+                # we aren't connected. start over
                 try:
-                    # set nonblocking mode
-                    sock.setblocking(False)
                     # send request
                     sock.send(request_raw)
                 except BrokenPipeError:
@@ -186,13 +188,17 @@ async def request(verb, url, headers, body=None):
                     break
             else:
                 print(f'{host}:{port}', repr(e), errno.errorcode.get(e.errno))
+        else:
+            await asyncio.sleep(0)
+            break
 
     if not sent_request:
         # if we didn't do this already:
-        # set nonblocking mode
-        sock.setblocking(False)
         # send request
         sock.send(request_raw)
+
+    # switch to nonblocking mode
+    sock.setblocking(False)
 
     # await the response
     read_buf = bytearray(4096)
