@@ -56,44 +56,6 @@ layout.add_content(status_bar)
 
 main_group.append(layout)
 
-#########
-# testing
-#########
 
-async def ip_changed(last_ip):
-    while True:
-        await asyncio.sleep(1)
-        cur_ip = str(wifi.radio.ipv4_address) if wifi.radio.connected else None
-        if last_ip != cur_ip:
-            return
-
-
-async def main():
-    loop = asyncio.get_event_loop()
-
-    async def _ip():
-        status_bar.ip = ip = str(wifi.radio.ipv4_address)
-        while True:
-            try:
-                await asyncio.wait_for(ip_changed(ip), timeout=300)
-            except asyncio.TimeoutError:
-                # timed out; ip never changed
-                continue
-
-            # update display
-            ip = str(wifi.radio.ipv4_address)
-            status_bar.ip = ip or 'disconnected'
-
-    loop.create_task(_ip())
-
-    while True:
-        await asyncio.sleep_ms(1000 // 60)
-        display.refresh()
-
-
-if __name__ == '__main__':
-    try:
-        asyncio.new_event_loop().run_until_complete(main())
-    finally:
-        i2c.deinit()
-        raise
+def refresh():
+    display.refresh()

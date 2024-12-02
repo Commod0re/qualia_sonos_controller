@@ -5,19 +5,27 @@ import wifi
 
 import asonos
 import controls
-import display
 import ssdp
+import ui
 
 
 def fmt_bssid(bssid):
     return ':'.join(f'{b:02x}' for b in bssid)
 
 
+async def ip_changed(last_ip):
+    while True:
+        cur_ip = str(wifi.radio.ipv4_address) if wifi.radio.connected else 'disconnected'
+        if last_ip != cur_ip:
+            return cur_ip
+        await asyncio.sleep(1)
+
+
 async def wifi_disconnected():
     while True:
-        await asyncio.sleep(1)
         if not wifi.radio.connected:
             return
+        await asyncio.sleep(1)
 
 
 def task_restart(name):
@@ -240,33 +248,49 @@ async def discover_sonos(player_map):
 async def main():
     loop = asyncio.get_event_loop()
 
-    print('managing wifi')
-    loop.create_task(wifi_roaming())
+    # print('managing wifi')
+    # loop.create_task(wifi_roaming())
 
     print('setting up controls')
-    ano = await controls.AnoRotary.new(display.qualia.graphics.i2c_bus)
+    ano = await controls.AnoRotary.new(ui.i2c)
 
-    print('locating sonoses')
-    # TODO: monitor players over time
-    # TODO: make this selectable instead of hardcoded
-    players = {'players': {}, 'rooms': {}}
-    target_room = 'Mike’s Office'
-    while not players['rooms'].get(target_room, {}).get('primary'):
-        await discover_sonos(players)
+    async def _status_ip():
+        ip = None
+        while True:
+            try:
+                new_ip = await asyncio.wait_for(ip_changed(ip), timeout=300)
+            except asyncio.TimeoutError:
+                # timed out; ip never changed
+                continue
+            # update display
+            ui.status_bar.ip = new_ip
 
-    player = players['rooms'][target_room]['primary']
 
-    print('connecting event handlers')
-    loop.create_task(monitor_current_track(player))
-    loop.create_task(play_pause(player, ano.events['select_press']))
-    loop.create_task(prev(player, ano.events['left_press']))
-    loop.create_task(next(player, ano.events['right_press']))
-    loop.create_task(volume(player, ano, ano.events['encoder']))
+    # ui tasks
+    loop.create_task(_status_ip())
+
+    # print('locating sonoses')
+    # # TODO: monitor players over time
+    # # TODO: make this selectable instead of hardcoded
+    # players = {'players': {}, 'rooms': {}}
+    # target_room = 'Mike’s Office'
+    # while not players['rooms'].get(target_room, {}).get('primary'):
+    #     await discover_sonos(players)
+    #
+    # player = players['rooms'][target_room]['primary']
+    #
+    # print('connecting event handlers')
+    # loop.create_task(monitor_current_track(player))
+    # loop.create_task(play_pause(player, ano.events['select_press']))
+    # loop.create_task(prev(player, ano.events['left_press']))
+    # loop.create_task(next(player, ano.events['right_press']))
+    # loop.create_task(volume(player, ano, ano.events['encoder']))
 
     print('ready')
 
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep_ms(1000 // 60)
+        ui.refresh()
 
 
 loop = asyncio.get_event_loop()
