@@ -2,7 +2,6 @@ import asyncio
 import errno
 import io
 import json
-import time
 import wifi
 from collections import namedtuple
 from socketpool import SocketPool
@@ -168,7 +167,7 @@ async def request(verb, url, headers, body=None):
                 # EISCONN
                 break
             else:
-                print(repr(e))
+                print(repr(e), errno.errorcode.get(e.errno))
     # now set nonblocking mode
     sock.setblocking(False)
     # send request
