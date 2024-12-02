@@ -19,7 +19,6 @@ ST: urn:schemas-upnp-org:device:ZonePlayer:1
 
 def _sock():
     s = pool.socket(SocketPool.AF_INET, SocketPool.SOCK_DGRAM, SocketPool.IPPROTO_UDP)
-    s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
     s.setsockopt(SocketPool.IPPROTO_IP, SocketPool.IP_MULTICAST_TTL, 2)
     s.setblocking(False)
     return s
@@ -96,7 +95,6 @@ class Discoverer:
     def __aiter__(self):
         return self
 
-
     async def __anext__(self):
         resp = None
         while resp is None:
@@ -114,6 +112,9 @@ class Discoverer:
                 remaining = until - time.time()
                 print(f'sleeping until {until} ({remaining}s)')
                 await asyncio.sleep(remaining)
+
+    def close(self):
+        self.sock.close()
 
 
 # async def discover(found):
