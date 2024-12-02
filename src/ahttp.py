@@ -152,7 +152,7 @@ async def request(verb, url, headers, body=None):
     resp = None
     sock = await _sock()
     # TODO: figure out why I can't connect in non-blocking mode with circuitpython 9.2.x
-    #       this worked in 9.0.x
+    #       it worked in 9.0.x
     # set connection timeout
     sock.settimeout(1)
     # connect
@@ -161,10 +161,10 @@ async def request(verb, url, headers, body=None):
             sock.connect((host, port))
         except OSError as e:
             if e.errno == 119:
-                # EINPROGRESS
+                # EINPROGRESS - connection is still in progress
                 await asyncio.sleep_ms(100)
             elif e.errno == 127:
-                # EISCONN
+                # EISCONN - we are connected
                 break
             else:
                 print(repr(e), errno.errorcode.get(e.errno))
