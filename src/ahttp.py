@@ -166,7 +166,7 @@ async def request(verb, url, headers, body=None):
             if e.errno == 116:
                 # ETIMEDOUT - operation timed out, but, connection might be in progress
                 await asyncio.sleep_ms(100)
-            if e.errno == 119:
+            elif e.errno == 119:
                 # EINPROGRESS - connection is currently in progress
                 await asyncio.sleep_ms(100)
             elif e.errno == 120:
