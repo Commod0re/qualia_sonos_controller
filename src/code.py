@@ -204,7 +204,8 @@ async def discover_sonos(player_map):
         player_map['rooms'] = {}
 
     # discover players
-    async for ssdp_parsed in ssdp.discover():
+    discoverer = ssdp.discover()
+    async for ssdp_parsed in discoverer:
         if ssdp_parsed.get('household_id', '').startswith('Sonos_'):
             player_id = mac(ssdp_parsed['headers']['USN'])
             verb = 'existing'
@@ -212,6 +213,7 @@ async def discover_sonos(player_map):
                 verb = 'found'
                 new_batch.append(asonos.Sonos(**ssdp_parsed))
             print(f'{verb} player at {ssdp_parsed["ip"]}')
+    discoverer.close()
 
 
     async def _connect(player):
@@ -254,6 +256,11 @@ async def main():
     print('setting up controls')
     ano = await controls.AnoRotary.new(ui.i2c)
 
+    async def _refresh():
+        while True:
+            await asyncio.sleep_ms(1000 // 60)
+            ui.refresh()
+
     async def _status_ip():
         ip = None
         while True:
@@ -265,8 +272,8 @@ async def main():
             # update display
             ui.status_bar.ip = new_ip
 
-
     # ui tasks
+    loop.create_task(_refresh())
     loop.create_task(_status_ip())
 
     print('locating sonoses')
@@ -287,10 +294,8 @@ async def main():
     loop.create_task(volume(player, ano, ano.events['encoder']))
 
     print('ready')
-
     while True:
-        await asyncio.sleep_ms(1000 // 60)
-        ui.refresh()
+        await asyncio.sleep(60)
 
 
 loop = asyncio.get_event_loop()
