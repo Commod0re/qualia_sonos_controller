@@ -9,6 +9,7 @@ from adafruit_displayio_layout.layouts.linear_layout import LinearLayout
 
 from .widgets.placeholder import Placeholder
 from .widgets.statusbar import StatusBar
+from .widgets.track_info import TrackInfo
 
 displayio.release_displays()
 tft_pins = dict(board.TFT_PINS)
@@ -59,8 +60,8 @@ layout.add_content(album_art_placeholder)
 play_progress_placeholder = Placeholder('play_progress', height=20, width=600)
 layout.add_content(play_progress_placeholder)
 
-track_info_placeholder = Placeholder('track_info', height=72, width=500)
-layout.add_content(track_info_placeholder)
+track_info = TrackInfo(width=720, height=100)
+layout.add_content(track_info)
 
 playlist_preview_placeholder = Placeholder('play_queue_preview', height=32*5, width=720)
 layout.add_content(playlist_preview_placeholder)

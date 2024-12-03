@@ -255,6 +255,7 @@ async def main():
 
     print('setting up controls')
     ano = await controls.AnoRotary.new(ui.i2c)
+    player = None
 
     async def _refresh():
         while True:
@@ -272,9 +273,31 @@ async def main():
             # update display
             ui.status_bar.ip = new_ip
 
+    async def _track_info():
+        # TODO: replace polling with events
+        # TODO: update play position
+        track = {}
+        while True:
+            if wifi.radio.connected and player:
+                cur_track = await player.current_track_info()
+                if cur_track and cur_track != track:
+                    if cur_track.get('artist') != track.get('artist'):
+                        ui.track_info.artist_name = cur_track.get('artist') or 'No Artist'
+                    if cur_track.get('album') != track.get('album'):
+                        ui.track_info.album_name = cur_track.get('album') or ''
+                    if cur_track.get('title') != track.get('title'):
+                        new_title = cur_track.get('title') or 'No Title'
+                        if new_title.startswith(cur_track.get('artist')):
+                            new_title = new_title.split(' - ')[-1]
+                        ui.track_info.track_name = new_title
+                    track = cur_track
+
+            await asyncio.sleep(1)
+
     # ui tasks
     loop.create_task(_refresh())
     loop.create_task(_status_ip())
+    loop.create_task(_track_info())
 
     print('locating sonoses')
     # TODO: monitor players over time
@@ -289,7 +312,7 @@ async def main():
     ui.status_bar.sonos = player.room_name
 
     print('connecting event handlers')
-    loop.create_task(monitor_current_track(player))
+    # loop.create_task(monitor_current_track(player))
     loop.create_task(play_pause(player, ano.events['select_press']))
     loop.create_task(prev(player, ano.events['left_press']))
     loop.create_task(next(player, ano.events['right_press']))
