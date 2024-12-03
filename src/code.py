@@ -280,11 +280,13 @@ async def main():
     # TODO: monitor players over time
     # TODO: make this selectable instead of hardcoded
     players = {'players': {}, 'rooms': {}}
+    ui.status_bar.sonos = 'connecting...'
     target_room = 'Mike’s Office'
     while not players['rooms'].get(target_room, {}).get('primary'):
         await discover_sonos(players)
 
     player = players['rooms'][target_room]['primary']
+    ui.status_bar.sonos = player.room_name
 
     print('connecting event handlers')
     loop.create_task(monitor_current_track(player))
