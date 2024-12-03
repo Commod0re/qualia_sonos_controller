@@ -46,23 +46,27 @@ display = FramebufferDisplay(fb, auto_refresh=False)
 main_group = displayio.Group()
 display.root_group = main_group
 
-
-
+# lay the main ui out as a vertical stack (LinearLayout)
 layout = LinearLayout(0, 0)
 
 # set up and add the status bar to the ui
 status_bar = StatusBar(width=720, height=24)
 layout.add_content(status_bar)
 
-album_art_placeholder = Placeholder('album_art', width=400, height=400)
+# album art area placeholder
+# this will also have the volume indicator
+album_art_placeholder = Placeholder('album_art', width=720, height=400)
 layout.add_content(album_art_placeholder)
 
-play_progress_placeholder = Placeholder('play_progress', height=20, width=600)
+# play/pause status and current position indicator area
+play_progress_placeholder = Placeholder('play_progress', height=20, width=720)
 layout.add_content(play_progress_placeholder)
 
+# track info
 track_info = TrackInfo(width=720, height=100)
 layout.add_content(track_info)
 
+# upcoming tracks
 playlist_preview_placeholder = Placeholder('play_queue_preview', height=32*5, width=720)
 layout.add_content(playlist_preview_placeholder)
 
