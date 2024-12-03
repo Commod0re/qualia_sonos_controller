@@ -7,6 +7,7 @@ import wifi
 from framebufferio import FramebufferDisplay
 from adafruit_displayio_layout.layouts.linear_layout import LinearLayout
 
+from .widgets.placeholder import Placeholder
 from .widgets.statusbar import StatusBar
 
 displayio.release_displays()
@@ -49,10 +50,22 @@ display.root_group = main_group
 layout = LinearLayout(0, 0)
 
 # set up and add the status bar to the ui
-status_bar = StatusBar(x=0, y=0, width=720, height=24)
+status_bar = StatusBar(width=720, height=24)
 layout.add_content(status_bar)
 
-# TODO: whatever goes below the status bar
+album_art_placeholder = Placeholder('album_art', width=400, height=400)
+layout.add_content(album_art_placeholder)
+
+play_progress_placeholder = Placeholder('play_progress', height=20, width=600)
+layout.add_content(play_progress_placeholder)
+
+track_info_placeholder = Placeholder('track_info', height=72, width=500)
+layout.add_content(track_info_placeholder)
+
+playlist_preview_placeholder = Placeholder('play_queue_preview', height=32*5, width=720)
+layout.add_content(playlist_preview_placeholder)
+
+# TODO: whatever goes next
 
 main_group.append(layout)
 
