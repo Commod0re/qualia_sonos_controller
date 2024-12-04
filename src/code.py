@@ -280,7 +280,11 @@ async def main():
         track = {}
         while True:
             if wifi.radio.connected and player:
-                cur_track = await player.current_track_info()
+                try:
+                    cur_track = await asyncio.wait_for(player.current_track_info(), 2)
+                except asyncio.TimeoutError:
+                    # try again
+                    continue
                 if cur_track and cur_track != track:
                     if cur_track.get('artist') != track.get('artist'):
                         ui.track_info.artist_name = cur_track.get('artist') or 'No Artist'
