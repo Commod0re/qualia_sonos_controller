@@ -198,9 +198,6 @@ async def request(verb, url, headers, body=None):
         else:
             break
 
-    if time.time() > connect_timeout_at:
-        raise asyncio.TimeoutError(f'connection to {host}:{port} timed out')
-
     if not sent_request:
         await asyncio.sleep(0)
         # if we didn't do this already:
