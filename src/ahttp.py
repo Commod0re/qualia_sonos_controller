@@ -157,9 +157,7 @@ async def request(verb, url, headers, body=None):
     sock = await _sock()
 
     # connect
-    # real timeout = 60 seconds
-    connect_timeout_at = time.time() + 60
-    while time.time() <= connect_timeout_at:
+    while True:
         try:
             sock.connect((host, port))
         except OSError as e:
