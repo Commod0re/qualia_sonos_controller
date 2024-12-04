@@ -25,7 +25,7 @@ def safe_dict_insert(d, keypath, value):
         else:
             if key == end:
                 if key in cur:
-                    print('WARN: {keypath} exists')
+                    print(f'WARN: {keypath} exists')
                 cur[key] = value
             else:
                 cur[key] = {}
