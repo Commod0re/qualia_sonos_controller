@@ -70,7 +70,6 @@ def parse_attrs(attrs_raw):
 
 
 # NOTE: this is working well overall, but there are a few things left to potentially address
-# TODO: handle arbitrary list elements where the list container tag name does not end in List
 # TODO: the way this function currently builds the dict is inefficient
 def _nest(tokens):
     doc = {}
