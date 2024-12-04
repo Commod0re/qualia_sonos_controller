@@ -57,7 +57,29 @@ class TrackInfo(Widget):
         self._track_lbl.anchor_point = (0.5, 0.5)
         self._track_lbl.anchored_position = (ax, ay + 24)
 
+        self._prev_indicator = label.Label(terminalio.FONT, text='', scale=4)
+        self._prev_indicator.anchor_point = (0.0, 0.5)
+        self._prev_indicator.anchored_position = (0, ay)
+
+        self._next_indicator = label.Label(terminalio.FONT, text='', scale=4)
+        self._next_indicator.anchor_point = (1.0, 0.5)
+        self._next_indicator.anchored_position = (self.width, ay)
+
         self.append(self._tg)
         self.append(self._artist_lbl)
         self.append(self._album_lbl)
         self.append(self._track_lbl)
+        self.append(self._prev_indicator)
+        self.append(self._next_indicator)
+
+    def show_icon(self, name):
+        if name == 'prev':
+            self._prev_indicator.text = '<<'
+        elif name == 'next':
+            self._next_indicator.text = '>>'
+
+    def hide_icon(self, name):
+        if name == 'prev':
+            self._prev_indicator.text = ''
+        elif name == 'next':
+            self._next_indicator.text = ''

@@ -103,24 +103,6 @@ async def play_pause(player, ev):
             await player.pause()
 
 
-@task_restart('prev')
-async def prev(player, ev):
-    while True:
-        await ev.wait()
-        ev.clear()
-        print('PREV')
-        await player.prev()
-
-
-@task_restart('next')
-async def next(player, ev):
-    while True:
-        await ev.wait()
-        ev.clear()
-        print('NEXT')
-        await player.next()
-
-
 @task_restart('volume')
 async def volume(player, cntrl, ev):
     # get initial position for delta tracking
@@ -299,10 +281,38 @@ async def main():
 
             await asyncio.sleep(1)
 
+    async def _prev():
+        press = ano.events['left_press']
+        while True:
+            await press.wait()
+            press.clear()
+            if wifi.radio.connected and player:
+                # show back indicator
+                ui.track_info.show_icon('prev')
+                # make the call
+                await player.prev()
+                # hide back indicator
+                ui.track_info.hide_icon('prev')
+
+    async def _next():
+        press = ano.events['right_press']
+        while True:
+            await press.wait()
+            press.clear()
+            if wifi.radio.connected and player:
+                # show next indicator
+                ui.track_info.show_icon('next')
+                await player.next()
+                # hide next indicator
+                ui.track_info.hide_icon('next')
+
     # ui tasks
     loop.create_task(_refresh())
     loop.create_task(_status_ip())
     loop.create_task(_track_info())
+    # controls tasks with ui implications
+    loop.create_task(_prev())
+    loop.create_task(_next())
 
     print('locating sonoses')
     # TODO: monitor players over time
@@ -319,8 +329,6 @@ async def main():
     print('connecting event handlers')
     # loop.create_task(monitor_current_track(player))
     loop.create_task(play_pause(player, ano.events['select_press']))
-    loop.create_task(prev(player, ano.events['left_press']))
-    loop.create_task(next(player, ano.events['right_press']))
     loop.create_task(volume(player, ano, ano.events['encoder']))
 
     print('ready')
