@@ -19,7 +19,6 @@ def _tokenator(xml):
 def safe_dict_insert(d, keypath, value):
     cur = d
     end = keypath[-1]
-    curpath = []
     for i, key in enumerate(keypath):
         if key in cur:
             cur = cur[key]
