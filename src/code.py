@@ -255,7 +255,7 @@ async def main():
 
     print('setting up controls')
     ano = await controls.AnoRotary.new(ui.i2c)
-    qbtns = await controls.QualiaButtons(ui.i2c)
+    qbtns = await controls.QualiaButtons.new(ui.i2c)
     player = None
 
     async def _refresh():
