@@ -85,7 +85,6 @@ def _nest(tokens):
             name = tag_body[0]
             idx = sum(1 for k in get_deep_key(doc, path, {}) if k[0] == name)
 
-            attrs = {}
             if len(tag_body) == 2:
                 attrs = parse_attrs(tag_body[1])
                 attrs_path = path.copy()
