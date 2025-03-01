@@ -186,7 +186,7 @@ async def discover_sonos(player_map):
         player_map['rooms'] = {}
 
     # discover players
-    discoverer = ssdp.discover()
+    discoverer = await ssdp.discover()
     async for ssdp_parsed in discoverer:
         if ssdp_parsed.get('household_id', '').startswith('Sonos_'):
             player_id = mac(ssdp_parsed['headers']['USN'])
