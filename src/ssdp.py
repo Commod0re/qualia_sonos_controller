@@ -15,10 +15,20 @@ MAN: "ssdp:discover"
 MX: 3
 ST: urn:schemas-upnp-org:device:ZonePlayer:1
 '''.encode('utf-8')
+PROTO_PORTS = {
+    80: 'http',
+    443: 'https',
+}
 
 
-def _sock():
-    s = pool.socket(SocketPool.AF_INET, SocketPool.SOCK_DGRAM, SocketPool.IPPROTO_UDP)
+async def _sock():
+    s = None
+    while s is None:
+        try:
+            s = pool.socket(SocketPool.AF_INET, SocketPool.SOCK_DGRAM, SocketPool.IPPROTO_UDP)
+        except RuntimeError as e:
+            print(f'err {e}; waiting for a socket')
+            await asyncio.sleep_ms(100)
     s.setsockopt(SocketPool.IPPROTO_IP, SocketPool.IP_MULTICAST_TTL, 2)
     s.setblocking(False)
     return s
@@ -36,6 +46,7 @@ def parse_ssdp_response(resp):
 
     return {
         'ip': host,
+        'port': port,
         'base': headers['LOCATION'][:headers['LOCATION'].index('/', 8)],
         'household_id': headers.pop('X-RINCON-HOUSEHOLD', None),
         'headers': headers,
@@ -86,8 +97,12 @@ class ResponseReader:
 
 
 class Discoverer:
-    def __init__(self):
-        self.sock = _sock()
+    @classmethod
+    async def aio_create(cls):
+        return cls(await _sock())
+
+    def __init__(self, sock):
+        self.sock = sock
         self._last_send = 0
         self._response_reader = ResponseReader(self.sock)
         self._riter = None
@@ -139,4 +154,4 @@ class Discoverer:
 
 
 def discover():
-    return Discoverer()
+    return Discoverer.aio_create()
