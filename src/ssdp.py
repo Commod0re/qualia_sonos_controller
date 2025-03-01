@@ -15,6 +15,10 @@ MAN: "ssdp:discover"
 MX: 3
 ST: urn:schemas-upnp-org:device:ZonePlayer:1
 '''.encode('utf-8')
+PROTO_PORTS = {
+    'http': 80,
+    'https': 443,
+}
 
 
 async def _sock():
@@ -38,9 +42,18 @@ def parse_ssdp_response(resp):
         host, port = hostport.split(':')
     else:
         host = hostport
+        port = PROTO_PORTS[proto]
+
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        # this is a hostname, not an ip
+        # TODO: need to write my own little async dns client
+        raise
 
     return {
         'ip': host,
+        'port': port,
         'base': headers['LOCATION'][:headers['LOCATION'].index('/', 8)],
         'household_id': headers.pop('X-RINCON-HOUSEHOLD', None),
         'headers': headers,
