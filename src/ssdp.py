@@ -15,10 +15,6 @@ MAN: "ssdp:discover"
 MX: 3
 ST: urn:schemas-upnp-org:device:ZonePlayer:1
 '''.encode('utf-8')
-PROTO_PORTS = {
-    80: 'http',
-    443: 'https',
-}
 
 
 async def _sock():
@@ -42,11 +38,9 @@ def parse_ssdp_response(resp):
         host, port = hostport.split(':')
     else:
         host = hostport
-        port = PROTO_PORTS[proto]
 
     return {
         'ip': host,
-        'port': port,
         'base': headers['LOCATION'][:headers['LOCATION'].index('/', 8)],
         'household_id': headers.pop('X-RINCON-HOUSEHOLD', None),
         'headers': headers,
