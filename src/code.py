@@ -157,6 +157,9 @@ async def monitor_current_track(player):
 
 
 async def discover_sonos(player_map):
+    # TODO: this works okay but it's not as fast/smooth as I'd like
+    #       right now it locates a batch of speakers and then tries to connect to the batch
+    #       but I'd like it to stream from discover->connect->enumerate without the chunkiness
     # player_map:
     #   players:
     #     mac: Sonos()
