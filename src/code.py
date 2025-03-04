@@ -277,6 +277,10 @@ async def main():
                         if new_title.startswith(cur_track.get('artist')):
                             new_title = new_title.split(' - ')[-1]
                         ui.track_info.track_name = new_title
+                    if cur_track.get('duration') != track.get('duration'):
+                        ui.play_progress.track_duration = cur_track.get('duration')
+                    if cur_track.get('position') is not None:
+                        ui.play_progress.play_position = cur_track.get('position')
                     track = cur_track
 
             await asyncio.sleep(1)

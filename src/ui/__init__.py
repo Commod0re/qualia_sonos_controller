@@ -8,6 +8,7 @@ from framebufferio import FramebufferDisplay
 from adafruit_displayio_layout.layouts.linear_layout import LinearLayout
 
 from .widgets.placeholder import Placeholder
+from .widgets.play_progress import PlayProgress
 from .widgets.statusbar import StatusBar
 from .widgets.track_info import TrackInfo
 
@@ -59,8 +60,8 @@ album_art_placeholder = Placeholder('album_art', width=720, height=400)
 layout.add_content(album_art_placeholder)
 
 # play/pause status and current position indicator area
-play_progress_placeholder = Placeholder('play_progress', height=20, width=720)
-layout.add_content(play_progress_placeholder)
+play_progress = PlayProgress(height=20, width=720)
+layout.add_content(play_progress)
 
 # track info
 track_info = TrackInfo(width=720, height=100)
