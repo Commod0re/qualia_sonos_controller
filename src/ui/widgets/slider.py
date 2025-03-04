@@ -77,7 +77,7 @@ class Slider(Widget):
         bar_width = self._fg.width
         bar_height = self._fg.height
         if self._orientation == 'vertical':
-            y1 = int(new_pos * bar_height)
+            y1 = int((1.0 - new_pos) * bar_height)
             x2 = bar_width
         else:
             y1 = 0

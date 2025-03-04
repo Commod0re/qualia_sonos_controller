@@ -11,6 +11,7 @@ from .widgets.placeholder import Placeholder
 from .widgets.play_progress import PlayProgress
 from .widgets.statusbar import StatusBar
 from .widgets.track_info import TrackInfo
+from .widgets.volume import Volume
 
 displayio.release_displays()
 tft_pins = dict(board.TFT_PINS)
@@ -59,9 +60,16 @@ layout.add_content(status_bar)
 album_art_placeholder = Placeholder('album_art', width=720, height=400)
 layout.add_content(album_art_placeholder)
 
+# volume indicator overlays the album art container
+volume = Volume(width=35, height=70*5)
+volume.anchor_point = (1.0, 0.5)
+volume.anchored_position = (album_art_placeholder.width - 2, album_art_placeholder.height // 2)
+album_art_placeholder.append(volume)
+
 # play/pause status and current position indicator area
 play_progress = PlayProgress(height=20, width=720, color=0xaaaaaa)
 layout.add_content(play_progress)
+
 
 # track info
 track_info = TrackInfo(width=720, height=100)

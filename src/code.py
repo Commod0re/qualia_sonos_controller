@@ -107,6 +107,7 @@ async def play_pause(player, ev):
 async def volume(player, cntrl, ev):
     # get initial position for delta tracking
     pos = cntrl.encoder.position
+    ui.volume.volume = await player.volume()
 
     while True:
         await ev.wait()
@@ -115,7 +116,7 @@ async def volume(player, cntrl, ev):
         delta = cur_pos - pos
         cur_vol = None
         while cur_vol is None:
-            cur_vol = await player.volume()
+            ui.volume.volume = cur_vol = await player.volume()
             if cur_vol:
                 break
             await asyncio.sleep(0.100)
@@ -123,6 +124,7 @@ async def volume(player, cntrl, ev):
         new_vol = max(0, min(100, cur_vol + delta))
         if cur_vol != new_vol:
             print(f'volume => {new_vol}')
+            ui.volume.volume = new_vol
             await player.volume(new_vol)
         pos = cur_pos
         ev.clear()
@@ -331,7 +333,6 @@ async def main():
     ui.status_bar.sonos = player.room_name
 
     print('connecting event handlers')
-    # loop.create_task(monitor_current_track(player))
     loop.create_task(play_pause(player, ano.events['select_press']))
     loop.create_task(volume(player, ano, ano.events['encoder']))
 
