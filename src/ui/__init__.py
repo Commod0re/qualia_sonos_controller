@@ -60,7 +60,7 @@ album_art_placeholder = Placeholder('album_art', width=720, height=400)
 layout.add_content(album_art_placeholder)
 
 # play/pause status and current position indicator area
-play_progress = PlayProgress(height=20, width=720)
+play_progress = PlayProgress(height=20, width=720, color=0xaaaaaa)
 layout.add_content(play_progress)
 
 # track info
