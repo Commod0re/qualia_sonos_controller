@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import os
+import time
 import wifi
 
 import asonos
@@ -263,6 +264,7 @@ async def main():
         # TODO: update play position
         track = {}
         while True:
+            loop_start = time.time()
             if wifi.radio.connected and player:
                 try:
                     cur_track = await asyncio.wait_for(player.current_track_info(), 2)
@@ -285,7 +287,7 @@ async def main():
                         ui.play_progress.play_position = cur_track.get('position')
                     track = cur_track
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(1 - (time.time() - loop_start))
 
     async def _prev():
         press = ano.events['left_press']
