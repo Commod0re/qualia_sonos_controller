@@ -3,7 +3,6 @@ import displayio
 from adafruit_displayio_layout.widgets.widget import Widget
 
 
-
 class Slider(Widget):
     @property
     def background_color(self):
