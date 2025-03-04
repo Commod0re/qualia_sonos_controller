@@ -246,7 +246,8 @@ class Sonos:
         trackmetaxml = htmldecode(res['TrackMetaData', 0])
         if trackmetaxml == 'NOT_IMPLEMENTED':
             return None
-        trackmeta = babyxml.xmltodict(trackmetaxml)['DIDL-Lite', 0]
+        trackmeta = babyxml.xmltodict(trackmetaxml)['DIDL-Lite', 0]['item', 0]
+        album_art_uri = htmldecode(trackmeta.get(('upnp:albumArtURI', 0), ''))
 
         return {
             'title': htmldecode(trackmeta.get(('dc:title', 0), '')),
