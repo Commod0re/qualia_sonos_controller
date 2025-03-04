@@ -249,10 +249,10 @@ class Sonos:
         trackmeta = babyxml.xmltodict(trackmetaxml)['DIDL-Lite', 0]
 
         return {
-            'title': htmldecode(trackmeta['item', 0].get(('dc:title', 0), '')),
-            'artist': trackmeta['item', 0].get(('dc:creator', 0), ''),
-            'album': trackmeta['item', 0].get(('upnp:album', 0), ''),
-            'album_art': ''.join([self.base, htmldecode(trackmeta['item', 0]['upnp:albumArtURI', 0])]),
+            'title': htmldecode(trackmeta.get(('dc:title', 0), '')),
+            'artist': htmldecode(trackmeta.get(('dc:creator', 0), '')),
+            'album': htmldecode(trackmeta.get(('upnp:album', 0), '')),
+            'album_art': ''.join([self.base, album_art_uri]) if album_art_uri else '',
             'position': res['RelTime', 0],
             'duration': res['TrackDuration', 0],
             'queue_position': int(res['Track', 0]) - 1,
