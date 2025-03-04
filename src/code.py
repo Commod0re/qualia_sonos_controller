@@ -157,9 +157,6 @@ async def monitor_current_track(player):
 
 
 async def discover_sonos(player_map):
-    # TODO: this works okay but it's not as fast/smooth as I'd like
-    #       right now it locates a batch of speakers and then tries to connect to the batch
-    #       but I'd like it to stream from discover->connect->enumerate without the chunkiness
     # player_map:
     #   players:
     #     mac: Sonos()
@@ -171,6 +168,8 @@ async def discover_sonos(player_map):
     #           model: name
     #           icon: path
     #       primary: Sonos()
+    connect_tasks = {}
+
     def mac(usn):
         return ':'.join(''.join(d) for d in zip(*[iter(usn[12:24])]*2))
 
@@ -181,32 +180,14 @@ async def discover_sonos(player_map):
             if ('iconList', 0) in device:
                 return device['iconList', 0]
 
-    new_batch = []
-
-    if 'players' not in player_map:
-        player_map['players'] = {}
-    if 'rooms' not in player_map:
-        player_map['rooms'] = {}
-
-    # discover players
-    discoverer = await ssdp.discover()
-    async for ssdp_parsed in discoverer:
-        if ssdp_parsed.get('household_id', '').startswith('Sonos_'):
-            player_id = mac(ssdp_parsed['headers']['USN'])
-            verb = 'existing'
-            if player_id not in player_map['players']:
-                verb = 'found'
-                new_batch.append(asonos.Sonos(**ssdp_parsed))
-            print(f'{verb} player at {ssdp_parsed["ip"]}')
-    discoverer.close()
-
-
     async def _connect(player):
-        try:
-            await player.connect()
-        except asyncio.TimeoutError:
-            print(f'TimeoutError connecting to {player.ip}')
-            return
+        while True:
+            try:
+                await player.connect()
+            except asyncio.TimeoutError:
+                print(f'TimeoutError connecting to {player.ip}')
+            else:
+                break
         room_name = player.room_name
         player_id = player.device_info['device', 0]['MACAddress', 0]
         model_name = player.device_info['device', 0]['deviceList', 0]['device', 0]['modelName', 0]
@@ -228,8 +209,24 @@ async def discover_sonos(player_map):
         if ('CurrentZoneGroupID', 0) in player.zone_attributes:
             player_map['rooms'][room_name]['primary'] = player
 
-    # connect to the new batch
-    await asyncio.gather(*(_connect(player) for player in new_batch))
+        # we are done
+        connect_tasks.pop(player_id)
+
+    # discover players
+    discoverer = await ssdp.discover()
+    async for ssdp_parsed in discoverer:
+        if ssdp_parsed.get('household_id', '').startswith('Sonos_'):
+            player_id = mac(ssdp_parsed['headers']['USN'])
+            verb = 'existing'
+            if player_id not in player_map['players'] and player_id not in connect_tasks:
+                verb = 'found'
+                connect_tasks[player_id] = asyncio.create_task(_connect(asonos.Sonos(**ssdp_parsed)))
+            print(f'{verb} player at {ssdp_parsed["ip"]}')
+    discoverer.close()
+
+    while connect_tasks:
+        await asyncio.sleep(1)
+            
 
 
 async def main():
