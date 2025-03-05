@@ -154,7 +154,7 @@ async def request(verb, url, headers, body=None):
 
 
     resp = None
-    sock = await _sock(timeout=0.3)
+    sock = await _sock(timeout=1)
 
     while True:
         try:
