@@ -2,7 +2,6 @@ import asyncio
 import errno
 import io
 import json
-import time
 import wifi
 from collections import namedtuple
 from socketpool import SocketPool
@@ -15,17 +14,19 @@ DEFAULT_TIMEOUT = 60
 pool = SocketPool(wifi.radio)
 
 
-async def _sock():
+async def _sock(timeout=10):
     s = None
     while s is None:
         try:
             s = pool.socket(SocketPool.AF_INET, SocketPool.SOCK_STREAM, SocketPool.IPPROTO_TCP)
-            s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
         except RuntimeError:
             await asyncio.sleep_ms(100)
-    # this works fine on CircuitPython 9.0.x
-    # this does not work fine on CircuitPython >= 9.1.0
-    s.setblocking(False)
+    s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
+    # CircuitPython >= 9.1.0: setting a TCP socket to non-blocking
+    # before connecting does not work right
+    # it will immediately fail with either EAGAIN or ETIMEDOUT
+    # instead! set a timeout when connecting, then we can use keepalive to persist it for a while
+    s.settimeout(timeout)
     return s
 
 
@@ -153,57 +154,42 @@ async def request(verb, url, headers, body=None):
 
 
     resp = None
-    sent_request = False
-    sock = await _sock()
+    sock = await _sock(timeout=0.3)
 
-    # connect
     while True:
         try:
             sock.connect((host, port))
         except OSError as e:
-            if e.errno == 113:
+            if e.errno in {errno.ECONNABORTED, errno.ECONNRESET, errno.ETIMEDOUT, errno.ENOTCONN}:
                 # ECONNABORTED - connection attempt aborted
+                # ECONNRESET - connection reset
+                # ETIMEDOUT - connection attempt timed out
+                # ENOTCONN - connection closed
                 sock.close()
                 sock = await _sock()
-            elif e.errno == 116:
-                # ETIMEDOUT - operation timed out, but, connection might be in progress
-                await asyncio.sleep_ms(100)
-            elif e.errno == 119:
+            elif e.errno in {errno.EINPROGRESS, errno.EALREADY}:
                 # EINPROGRESS - connection is currently in progress
-                await asyncio.sleep_ms(100)
-            elif e.errno == 120:
-                # EALREADY - connection is already pending
+                # EALREADY - already connecting
                 await asyncio.sleep_ms(100)
             elif e.errno == 127:
-                # EISCONN - we may be connected
+                # EISCONN - already connected
                 await asyncio.sleep(0)
+                # now that we're connected, set non-blocking`
+                sock.setblocking(False)
                 # try sending the request. if that fails with BrokenPipeError,
                 # we aren't connected. start over
                 try:
                     # send request
                     sock.send(request_raw)
-                except BrokenPipeError:
+                except BrokenPipeError as e:
                     # jk - not connected! try again
                     sock.close()
                     sock = await _sock()
                 else:
-                    sent_request = True
                     break
-            elif e.errno == 128:
-                # ENOTCONN - not connected; start over
-                sock.close()
-                sock = await _sock()
-            else:
-                print(f'[{datetime.now()}]{req_id}_{host}:{port}', repr(e), errno.errorcode.get(e.errno))
-        else:
-            break
 
-    if not sent_request:
-        await asyncio.sleep(0)
-        # if we didn't do this already:
-        # send request
-        sock.send(request_raw)
-
+    # post-send await point for concurrency
+    await asyncio.sleep(0)
 
     # await the response
     read_buf = bytearray(4096)
@@ -216,6 +202,9 @@ async def request(verb, url, headers, body=None):
                 sock.close()
                 break
         except OSError as e:
+            if e.errno != 11:
+                # not EAGAIN
+                print('READ', repr(e), errno.errorcode.get(e.errno))
             await asyncio.sleep_ms(100)
         else:
             response_buf += read_buf[:read_nbytes]
