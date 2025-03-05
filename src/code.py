@@ -264,7 +264,7 @@ async def main():
         # TODO: update play position
         track = {}
         while True:
-            loop_start = time.time()
+            loop_start = time.monotonic()
             if wifi.radio.connected and player:
                 try:
                     cur_track = await asyncio.wait_for(player.current_track_info(), 2)
@@ -287,7 +287,7 @@ async def main():
                         ui.play_progress.play_position = cur_track.get('position')
                     track = cur_track
 
-            await asyncio.sleep(1 - (time.time() - loop_start))
+            await asyncio.sleep(1 - (time.monotonic() - loop_start))
 
     async def _prev():
         press = ano.events['left_press']
