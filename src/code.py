@@ -108,26 +108,20 @@ async def play_pause(player, ev):
 async def volume(player, cntrl, ev):
     # get initial position for delta tracking
     pos = cntrl.encoder.position
-    ui.volume.volume = await player.volume()
+    vol = ui.volume.volume = await player.volume()
 
     while True:
         await ev.wait()
-        # set volume
-        cur_pos = cntrl.encoder.position
-        delta = cur_pos - pos
-        cur_vol = None
-        while cur_vol is None:
-            ui.volume.volume = cur_vol = await player.volume()
-            if cur_vol:
-                break
-            await asyncio.sleep(0.100)
+        # get new encoder position and calculate delta from last time
+        new_pos = cntrl.encoder.position
+        delta = new_pos - pos
 
-        new_vol = max(0, min(100, cur_vol + delta))
-        if cur_vol != new_vol:
-            print(f'volume => {new_vol}')
-            ui.volume.volume = new_vol
+        # if position changed, update the UI and speaker
+        if delta:
+            new_vol = max(0, min(100, vol + delta))
+            vol = ui.volume.volume = new_vol
             await player.volume(new_vol)
-        pos = cur_pos
+            pos = new_pos
         ev.clear()
 
 
