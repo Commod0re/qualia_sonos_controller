@@ -2,7 +2,9 @@ import asyncio
 import errno
 import io
 import json
+import random
 import wifi
+from adafruit_datetime import datetime
 from collections import namedtuple
 from socketpool import SocketPool
 
@@ -14,7 +16,7 @@ DEFAULT_TIMEOUT = 60
 pool = SocketPool(wifi.radio)
 
 
-async def _sock(timeout=1):
+async def _sock():
     s = None
     while s is None:
         try:
@@ -26,7 +28,7 @@ async def _sock(timeout=1):
     # before connecting does not work right
     # it will immediately fail with either EAGAIN or ETIMEDOUT
     # instead! set a timeout when connecting, then we can use keepalive to persist it for a while
-    s.settimeout(timeout)
+    s.settimeout(1)
     return s
 
 
@@ -133,7 +135,6 @@ async def request(verb, url, headers, body=None):
     
     # basic/auto headers
     headers['Host'] = url_parsed.netloc.lower()
-    headers['Connection'] = 'close'
     if body:
         headers['Content-Length'] = len(body)
 
@@ -155,21 +156,26 @@ async def request(verb, url, headers, body=None):
 
     resp = None
     sock = await _sock()
+    await asyncio.sleep(0)
+    # tag = f'{random.randint(0x1000, 0xffff):04x}'
 
+    # print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
     while True:
         try:
             sock.connect((host, port))
         except OSError as e:
-            if e.errno in {errno.ECONNABORTED, errno.ECONNRESET, errno.ETIMEDOUT, errno.ENOTCONN}:
+            # print(f'[{datetime.now()}]{tag}_{host}:{port} {e}')
+            if e.errno in {errno.ECONNABORTED, errno.ECONNRESET, errno.ENOTCONN, errno.EBADF}:
                 # ECONNABORTED - connection attempt aborted
                 # ECONNRESET - connection reset
-                # ETIMEDOUT - connection attempt timed out
                 # ENOTCONN - connection closed
+                # EBADF - bad file descriptor (use after close)
                 sock.close()
                 sock = await _sock()
-            elif e.errno in {errno.EINPROGRESS, errno.EALREADY}:
+            elif e.errno in {errno.EINPROGRESS, errno.EALREADY, errno.ETIMEDOUT, errno.EAGAIN}:
                 # EINPROGRESS - connection is currently in progress
                 # EALREADY - already connecting
+                # ETIMEDOUT - operation timed out
                 await asyncio.sleep_ms(100)
             elif e.errno == 127:
                 # EISCONN - already connected
@@ -180,16 +186,19 @@ async def request(verb, url, headers, body=None):
                 # we aren't connected. start over
                 try:
                     # send request
+                    # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN')
                     sock.send(request_raw)
                 except BrokenPipeError as e:
+                    # print(f'[{datetime.now()}]{tag}_{host}:{port} {e}')
                     # jk - not connected! try again
                     sock.close()
                     sock = await _sock()
+                    await asyncio.sleep(0)
                 else:
+                    # print(f'[{datetime.now()}]{tag}_{host}:{port} send success')
+                    # post-send await point for concurrency
+                    await asyncio.sleep(0)
                     break
-
-    # post-send await point for concurrency
-    await asyncio.sleep(0)
 
     # await the response
     read_buf = bytearray(4096)
