@@ -223,7 +223,6 @@ async def discover_sonos(player_map):
 
     while connect_tasks:
         await asyncio.sleep(1)
-            
 
 
 async def main():
