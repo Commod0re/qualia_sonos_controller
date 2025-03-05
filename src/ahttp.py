@@ -14,7 +14,7 @@ DEFAULT_TIMEOUT = 60
 pool = SocketPool(wifi.radio)
 
 
-async def _sock(timeout=10):
+async def _sock(timeout=1):
     s = None
     while s is None:
         try:
@@ -154,7 +154,7 @@ async def request(verb, url, headers, body=None):
 
 
     resp = None
-    sock = await _sock(timeout=1)
+    sock = await _sock()
 
     while True:
         try:
