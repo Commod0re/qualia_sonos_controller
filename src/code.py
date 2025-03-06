@@ -258,11 +258,7 @@ async def main():
         while True:
             loop_start = time.monotonic()
             if wifi.radio.connected and player:
-                try:
-                    cur_track = await player.current_track_info()
-                except asyncio.TimeoutError:
-                    # try again
-                    continue
+                cur_track = await player.current_track_info()
                 if cur_track and cur_track != track:
                     # update artist, album, title
                     if cur_track.get('artist') != track.get('artist'):
