@@ -13,7 +13,9 @@ def seconds_to_time(seconds):
     seconds -= (3600 * h)
     m = seconds // 60
     seconds -= (60 * m)
-    return f'{h:02d}:{m:02d}:{seconds:02d}'
+    if h:
+        return f'{h:02d}:{m:02d}:{seconds:02d}'
+    return f'{m:02d}:{seconds:02d}'
 
 
 class PlayProgress(Slider):
@@ -45,12 +47,12 @@ class PlayProgress(Slider):
         self._duration_seconds = 0
         self._position_seconds = 0
 
-        self._pos_label = label.Label(terminalio.FONT, text='00:00:00')
+        self._pos_label = label.Label(terminalio.FONT, text='00:00', scale=2)
         self._pos_label.anchor_point = (0.0, 0.5)
         self._pos_label.anchored_position = (3, self.height // 2)
         self._pos_label._palette.make_opaque(0)
 
-        self._duration_label = label.Label(terminalio.FONT, text='00:00:00')
+        self._duration_label = label.Label(terminalio.FONT, text='00:00', scale=2)
         self._duration_label.anchor_point = (1.0, 0.5)
         self._duration_label.anchored_position = (self.width - 3, self.height // 2)
         self._duration_label._palette.make_opaque(0)
