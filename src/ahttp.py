@@ -3,6 +3,7 @@ import errno
 import io
 import json
 import random
+import time
 import wifi
 from adafruit_datetime import datetime
 from collections import namedtuple
@@ -26,9 +27,9 @@ async def _sock():
     s.setsockopt(SocketPool.SOL_SOCKET, SocketPool.SO_REUSEADDR, 1)
     # CircuitPython >= 9.1.0: setting a TCP socket to non-blocking
     # before connecting does not work right
-    # it will immediately fail with either EAGAIN or ETIMEDOUT
-    # instead! set a timeout when connecting, then we can use keepalive to persist it for a while
-    s.settimeout(1)
+    # it will immediately fail with either EAGAIN or ETIMEDOUT and never actually seems to succeed
+    # instead, set a timeout when connecting and switch to non-blocking after the connection is established
+    s.settimeout(0.5)
     return s
 
 
@@ -157,9 +158,10 @@ async def request(verb, url, headers, body=None):
     resp = None
     sock = await _sock()
     await asyncio.sleep(0)
-    # tag = f'{random.randint(0x1000, 0xffff):04x}'
+    tag = f'{random.randint(0x1000, 0xffff):04x}'
 
     # print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
+    # st = time.monotonic()
     while True:
         try:
             sock.connect((host, port))
@@ -176,28 +178,28 @@ async def request(verb, url, headers, body=None):
                 # EINPROGRESS - connection is currently in progress
                 # EALREADY - already connecting
                 # ETIMEDOUT - operation timed out
+                # EAGAIN - try again
                 await asyncio.sleep_ms(100)
             elif e.errno == 127:
                 # EISCONN - already connected
-                await asyncio.sleep(0)
                 # now that we're connected, set non-blocking`
                 sock.setblocking(False)
                 # try sending the request. if that fails with BrokenPipeError,
                 # we aren't connected. start over
                 try:
                     # send request
-                    # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN')
+                    # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
                     sock.send(request_raw)
                 except BrokenPipeError as e:
-                    # print(f'[{datetime.now()}]{tag}_{host}:{port} {e}')
+                    # print(f'[{datetime.now()}]{tag}_{host}:{port} BrokenPipeError({e})')
                     # jk - not connected! try again
+                    await asyncio.sleep(0)
                     sock.close()
                     sock = await _sock()
-                    await asyncio.sleep(0)
                 else:
-                    # print(f'[{datetime.now()}]{tag}_{host}:{port} send success')
-                    # post-send await point for concurrency
+                    # print(f'[{datetime.now()}]{tag}_{host}:{port} send success ({time.monotonic() - st}s)')
                     await asyncio.sleep(0)
+                    # post-send await point for concurrency
                     break
 
     # await the response
