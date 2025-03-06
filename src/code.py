@@ -254,7 +254,6 @@ async def main():
 
     async def _track_info():
         # TODO: replace polling with events
-        # TODO: update play position
         track = {}
         while True:
             loop_start = time.monotonic()
@@ -265,6 +264,7 @@ async def main():
                     # try again
                     continue
                 if cur_track and cur_track != track:
+                    # update artist, album, title
                     if cur_track.get('artist') != track.get('artist'):
                         ui.track_info.artist_name = cur_track.get('artist') or 'No Artist'
                     if cur_track.get('album') != track.get('album'):
@@ -274,8 +274,10 @@ async def main():
                         if new_title.startswith(cur_track.get('artist')):
                             new_title = new_title.split(' - ')[-1]
                         ui.track_info.track_name = new_title
+                    # update duration
                     if cur_track.get('duration') != track.get('duration'):
                         ui.play_progress.track_duration = cur_track.get('duration')
+                    # update position
                     if cur_track.get('position') is not None:
                         ui.play_progress.play_position = cur_track.get('position')
                     track = cur_track
