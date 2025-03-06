@@ -260,7 +260,7 @@ async def main():
             loop_start = time.monotonic()
             if wifi.radio.connected and player:
                 try:
-                    cur_track = await asyncio.wait_for(player.current_track_info(), 2)
+                    cur_track = await player.current_track_info()
                 except asyncio.TimeoutError:
                     # try again
                     continue
