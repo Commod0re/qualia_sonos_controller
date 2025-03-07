@@ -328,7 +328,7 @@ async def main():
         await discover_sonos(players)
 
     player = players['rooms'][target_room]['primary']
-    ui.status_bar.sonos = player.room_name
+    ui.status_bar.sonos = player.room_name.replace('’', "'")
 
     print('connecting event handlers')
     loop.create_task(play_pause(player, ano.events['select_press']))
