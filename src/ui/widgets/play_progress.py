@@ -25,8 +25,8 @@ class PlayProgress(Slider):
 
     @track_duration.setter
     def track_duration(self, new_duration):
-        self._duration_label.text = new_duration
         self._duration_seconds = time_to_seconds(new_duration)
+        self._duration_label.text = self.track_duration
 
     @property
     def play_position(self):
@@ -34,8 +34,8 @@ class PlayProgress(Slider):
 
     @play_position.setter
     def play_position(self, new_position):
-        self._pos_label.text = new_position
         self._position_seconds = time_to_seconds(new_position)
+        self._pos_label.text = self.play_position
         if self._duration_seconds:
             self.position = self._position_seconds / self._duration_seconds
         else:
