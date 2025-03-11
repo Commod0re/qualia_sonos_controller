@@ -158,7 +158,7 @@ async def request(verb, url, headers, body=None):
     resp = None
     sock = await _sock()
     await asyncio.sleep(0)
-    tag = f'{random.randint(0x1000, 0xffff):04x}'
+    # tag = f'{random.randint(0x1000, 0xffff):04x}'
 
     # print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
     # st = time.monotonic()
@@ -172,6 +172,8 @@ async def request(verb, url, headers, body=None):
                 # ECONNRESET - connection reset
                 # ENOTCONN - connection closed
                 # EBADF - bad file descriptor (use after close)
+                print(f'[{datetime.now()}]{host}:{port} connection error {e}; retry')
+                await asyncio.sleep(0)
                 sock.close()
                 sock = await _sock()
             elif e.errno in {errno.EINPROGRESS, errno.EALREADY, errno.ETIMEDOUT, errno.EAGAIN}:
@@ -191,8 +193,8 @@ async def request(verb, url, headers, body=None):
                     # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
                     sock.send(request_raw)
                 except BrokenPipeError as e:
-                    # print(f'[{datetime.now()}]{tag}_{host}:{port} BrokenPipeError({e})')
                     # jk - not connected! try again
+                    print(f'[{datetime.now()}]{host}:{port} connection error {e}; retry')
                     await asyncio.sleep(0)
                     sock.close()
                     sock = await _sock()
