@@ -158,7 +158,7 @@ async def request(verb, url, headers, body=None):
     resp = None
     sock = await _sock()
     await asyncio.sleep(0)
-    # tag = f'{random.randint(0x1000, 0xffff):04x}'
+    tag = f'{random.randint(0x1000, 0xffff):04x}'
 
     # print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
     # st = time.monotonic()
@@ -172,37 +172,45 @@ async def request(verb, url, headers, body=None):
                 # ECONNRESET - connection reset
                 # ENOTCONN - connection closed
                 # EBADF - bad file descriptor (use after close)
-                print(f'[{datetime.now()}]{host}:{port} connection error {e}; retry')
+                print(f'[{datetime.now()}]{tag}_{host}:{port} connection error {e}; retry')
                 await asyncio.sleep(0)
                 sock.close()
                 sock = await _sock()
+                continue
             elif e.errno in {errno.EINPROGRESS, errno.EALREADY, errno.ETIMEDOUT, errno.EAGAIN}:
                 # EINPROGRESS - connection is currently in progress
                 # EALREADY - already connecting
                 # ETIMEDOUT - operation timed out
                 # EAGAIN - try again
                 await asyncio.sleep_ms(100)
+                continue
             elif e.errno == 127:
                 # EISCONN - already connected
-                # now that we're connected, set non-blocking`
-                sock.setblocking(False)
-                # try sending the request. if that fails with BrokenPipeError,
-                # we aren't connected. start over
-                try:
-                    # send request
-                    # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
-                    sock.send(request_raw)
-                except BrokenPipeError as e:
-                    # jk - not connected! try again
-                    print(f'[{datetime.now()}]{host}:{port} connection error {e}; retry')
-                    await asyncio.sleep(0)
-                    sock.close()
-                    sock = await _sock()
-                else:
-                    # print(f'[{datetime.now()}]{tag}_{host}:{port} send success ({time.monotonic() - st}s)')
-                    await asyncio.sleep(0)
-                    # post-send await point for concurrency
-                    break
+                pass
+            else:
+                # all other OSErrors
+                continue
+
+        # sock.connect call succeeded or subsequent call returned EISCONN
+        # now that we're connected, set non-blocking`
+        sock.setblocking(False)
+        # try sending the request. if that fails with BrokenPipeError,
+        # we aren't connected. start over
+        try:
+            # send request
+            # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
+            sock.send(request_raw)
+        except BrokenPipeError as e:
+            # jk - not connected! try again
+            print(f'[{datetime.now()}]{tag}_{host}:{port} connection error BrokenPipeError({e}); retry')
+            await asyncio.sleep(0)
+            sock.close()
+            sock = await _sock()
+        else:
+            # print(f'[{datetime.now()}]{tag}_{host}:{port} send success ({time.monotonic() - st}s)')
+            await asyncio.sleep(0)
+            # post-send await point for concurrency
+            break
 
     # await the response
     read_buf = bytearray(4096)
