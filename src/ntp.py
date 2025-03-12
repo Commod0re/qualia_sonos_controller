@@ -29,7 +29,7 @@ def is_dst(dt, dst_start=None, dst_end=None):
 def ntp():
     ntp_server = os.getenv('NTP_SERVER')
     tz_offset = int(os.getenv('NTP_TZ_OFFSET', '0'))
-    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset - 1)
+    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset)
     clock = rtc.RTC()
 
     # sync the clock to standard time
@@ -38,7 +38,7 @@ def ntp():
     # calculate our actual tz offset and re-instantiate ntp_client
     dst_start, dst_end = get_dst_dates_for_year(tm.tm_year)
     last_is_dst = new_is_dst = is_dst(datetime.now())
-    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset - int(not last_is_dst))
+    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset + int(last_is_dst))
 
     # monitor task
     async def monitor_ntp():
@@ -61,7 +61,7 @@ def ntp():
 
             # if our dst state changed we need to re-instantiate the ntp client
             if new_is_dst != last_is_dst:
-                ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset - int(not last_is_dst))
+                ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset + int(last_is_dst))
 
             # naive solution: resync NTP every interval no matter how larger or small the diff
             # TODO: when the diff between our time and the NTP server's time is above zero but smaller than a certain amount
