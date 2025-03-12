@@ -10,7 +10,7 @@ MOUNT_OPTIONS := $(subst $(C), ,$(subst $(LP),,$(subst $(RP),,$(shell mount | aw
 else
 MOUNT_OPTIONS :=
 endif
-REQUIRES := adafruit_datetime adafruit_displayio_layout adafruit_pca9554 adafruit_seesaw asyncio biplane
+REQUIRES := adafruit_datetime adafruit_displayio_layout adafruit_ntp adafruit_pca9554 adafruit_seesaw asyncio biplane
 
 
 

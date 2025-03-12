@@ -7,6 +7,7 @@ from adafruit_datetime import datetime
 
 import asonos
 import controls
+import ntp
 import ssdp
 import ui
 
@@ -228,6 +229,9 @@ async def discover_sonos(player_map):
 
 async def main():
     loop = asyncio.get_event_loop()
+
+    print('syncing NTP')
+    loop.create_task(ntp.ntp())
 
     # print('managing wifi')
     # loop.create_task(wifi_roaming())
