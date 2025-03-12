@@ -3,26 +3,70 @@ import os
 import rtc
 
 import adafruit_ntp
+from adafruit_datetime import datetime, timedelta
 
 import ahttp
 
 
+def get_dst_dates_for_year(year):
+    # going by US DST rules:
+    # DST begins at 2AM on the second Sunday in March and ends on the first Sunday in November
+    # so first calculate the relevant date range for input dt
+    march_1 = datetime(year, 3, 1)
+    dst_start = datetime(year, 3, 14 - march_1.weekday(), 2)
+    nov_1 = datetime(year, 11, 1)
+    dst_end = datetime(year, 11, 7 - nov_1.weekday(), 2)
+    return dst_start, dst_end
+
+
+def is_dst(dt, dst_start=None, dst_end=None):
+    if dst_start is None or dst_end is None:
+        dst_start, dst_end = get_dst_dates_for_year(dt.year)
+    # now return whether dt is within the range or not
+    return dst_start <= dt <= dst_end
+
+
 def ntp():
     ntp_server = os.getenv('NTP_SERVER')
-    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server)
+    tz_offset = int(os.getenv('NTP_TZ_OFFSET', '0'))
+    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset - 1)
     clock = rtc.RTC()
 
-    # sync the clock
-    clock.datetime = ntp_client.datetime
+    # sync the clock to standard time
+    tm = clock.datetime = ntp_client.datetime
+
+    # calculate our actual tz offset and re-instantiate ntp_client
+    dst_start, dst_end = get_dst_dates_for_year(tm.tm_year)
+    last_is_dst = new_is_dst = is_dst(datetime.now())
+    ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset - int(not last_is_dst))
 
     # monitor task
     async def monitor_ntp():
+        nonlocal dst_start, dst_end, last_is_dst, new_is_dst, ntp_client
+
         while True:
             # sync every hour
             await asyncio.sleep(60 * 60)
+
+            # on certain dates, during certain time ranges, re-check last_is_dst and re-instantiate ntp_client
+            # - dst start date
+            if (tm.tm_mon, tm.tm_mday) == (dst_start.month, dst_start.day) and last_is_dst:
+                new_is_dst = is_dst(datetime.now(), dst_start, dst_end)
+            # - dst end date
+            elif (tm.tm_mon, tm.tm_mday) == (dst_end.month, dst_end.day) and not last_is_dst:
+                new_is_dst = is_dst(datetime.now(), dst_start, dst_end)
+            # - january 1st
+            elif (tm.tm_mo, tm.tm_mday) == (1, 1) and tm.tm_year != dst_start.year:
+                dst_start, dst_end = get_dst_dates_for_year(tm.tm_year)
+
+            # if our dst state changed we need to re-instantiate the ntp client
+            if new_is_dst != last_is_dst:
+                ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset - int(not last_is_dst))
+
             # naive solution: resync NTP every interval no matter how larger or small the diff
-            # TODO: when the diff between our time and the NTP server's time is larger than a certain amount
-            #       we should make smaller adjustments every interval instead of blindly resyncing
-            clock.datetime = ntp_client.datetime
+            # TODO: when the diff between our time and the NTP server's time is above zero but smaller than a certain amount
+            #       we should try to make adjustments via RTC calibration instead of blindly setting the clock
+            tm = clock.datetime = ntp_client.datetime
+
 
     return monitor_ntp()
