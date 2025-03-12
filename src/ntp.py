@@ -49,14 +49,15 @@ def ntp():
             await asyncio.sleep(60 * 60)
 
             # on certain dates, during certain time ranges, re-check last_is_dst and re-instantiate ntp_client
+            today = (clock.datetime.tm_mon, clock.datetime.tm_mday)
             # - dst start date
-            if (tm.tm_mon, tm.tm_mday) == (dst_start.month, dst_start.day) and last_is_dst:
+            if today == (dst_start.month, dst_start.day) and (not last_is_dst):
                 new_is_dst = is_dst(datetime.now(), dst_start, dst_end)
             # - dst end date
-            elif (tm.tm_mon, tm.tm_mday) == (dst_end.month, dst_end.day) and not last_is_dst:
+            elif today == (dst_end.month, dst_end.day) and last_is_dst:
                 new_is_dst = is_dst(datetime.now(), dst_start, dst_end)
             # - january 1st
-            elif (tm.tm_mo, tm.tm_mday) == (1, 1) and tm.tm_year != dst_start.year:
+            elif today == (1, 1) and clock.datetime.tm_year != dst_start.year:
                 dst_start, dst_end = get_dst_dates_for_year(tm.tm_year)
 
             # if our dst state changed we need to re-instantiate the ntp client
@@ -66,7 +67,6 @@ def ntp():
             # naive solution: resync NTP every interval no matter how larger or small the diff
             # TODO: when the diff between our time and the NTP server's time is above zero but smaller than a certain amount
             #       we should try to make adjustments via RTC calibration instead of blindly setting the clock
-            tm = clock.datetime = ntp_client.datetime
-
+            clock.datetime = ntp_client.datetime
 
     return monitor_ntp()
