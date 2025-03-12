@@ -33,10 +33,17 @@ def ntp():
     clock = rtc.RTC()
 
     # sync the clock to standard time
-    tm = clock.datetime = ntp_client.datetime
+    while True:
+        try:
+            clock.datetime = ntp_client.datetime
+        except OSError as e:
+            print(e)
+            pass
+        else:
+            break
 
     # calculate our actual tz offset and re-instantiate ntp_client
-    dst_start, dst_end = get_dst_dates_for_year(tm.tm_year)
+    dst_start, dst_end = get_dst_dates_for_year(clock.datetime.tm_year)
     last_is_dst = new_is_dst = is_dst(datetime.now())
     ntp_client = adafruit_ntp.NTP(ahttp.pool, server=ntp_server, tz_offset=tz_offset + int(last_is_dst))
 
@@ -67,6 +74,10 @@ def ntp():
             # naive solution: resync NTP every interval no matter how larger or small the diff
             # TODO: when the diff between our time and the NTP server's time is above zero but smaller than a certain amount
             #       we should try to make adjustments via RTC calibration instead of blindly setting the clock
-            clock.datetime = ntp_client.datetime
+            try:
+                clock.datetime = ntp_client.datetime
+            except OSError as e:
+                print(e)
+
 
     return monitor_ntp()

@@ -230,11 +230,11 @@ async def discover_sonos(player_map):
 async def main():
     loop = asyncio.get_event_loop()
 
-    print('syncing NTP')
-    loop.create_task(ntp.ntp())
-
     # print('managing wifi')
     # loop.create_task(wifi_roaming())
+
+    print('syncing NTP')
+    loop.create_task(ntp.ntp())
 
     print('setting up controls')
     ano = await controls.AnoRotary.new(ui.i2c)
