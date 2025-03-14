@@ -91,21 +91,6 @@ async def wifi_roaming():
                 print('wifi connected')
 
 
-@task_restart('play_pause')
-async def play_pause(player, ev):
-    while True:
-        await ev.wait()
-        ev.clear()
-
-        cur_state = await player.state()
-        if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
-            print('PLAY')
-            await player.play()
-        else:
-            print('PAUSE')
-            await player.pause()
-
-
 @task_restart('volume')
 async def volume(player, cntrl, ev):
     # get initial position for delta tracking
@@ -240,6 +225,7 @@ async def main():
     ano = await controls.AnoRotary.new(ui.i2c)
     qbtns = await controls.QualiaButtons.new(ui.i2c)
     player = None
+    cur_state = None
 
     async def _refresh():
         while True:
@@ -274,6 +260,9 @@ async def main():
         }
         while True:
             loop_start = time.monotonic()
+            # NOTE: once I get UPnP event subscriptions working this won't be needed
+            #       but as a stopgap, poll current track info less frequently when stopped
+            interval = 30 if cur_state == 'STOPPED' else 1
             if wifi.radio.connected and player:
                 try:
                     cur_track = await player.current_track_info()
@@ -313,7 +302,7 @@ async def main():
                             medium = cur_medium
                     track = cur_track
 
-            await asyncio.sleep(1 - (time.monotonic() - loop_start))
+            await asyncio.sleep(interval - (time.monotonic() - loop_start))
 
     async def _prev():
         press = ano.events['left_press']
@@ -340,6 +329,21 @@ async def main():
                 # hide next indicator
                 ui.track_info.hide_icon('next')
 
+    @task_restart('play_pause')
+    async def _play_pause(player, ev):
+        nonlocal cur_state
+        while True:
+            await ev.wait()
+            ev.clear()
+
+            cur_state = await player.state()
+            if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
+                print('PLAY')
+                await player.play()
+            else:
+                print('PAUSE')
+                await player.pause()
+
     # ui tasks
     loop.create_task(_refresh())
     loop.create_task(_status_ip())
@@ -361,7 +365,7 @@ async def main():
     ui.status_bar.sonos = player.room_name.replace('’', "'")
 
     print('connecting event handlers')
-    loop.create_task(play_pause(player, ano.events['select_press']))
+    loop.create_task(_play_pause(player, ano.events['select_press']))
     loop.create_task(volume(player, ano, ano.events['encoder']))
 
     print('ready')
