@@ -29,6 +29,14 @@ class TrackInfo(Widget):
     def track_name(self, new_name):
         self._track_lbl.text = new_name
 
+    @property
+    def media_title(self):
+        return self._media_lbl.text
+
+    @media_title.setter
+    def media_title(self, new_title):
+        self._media_lbl.text = new_title
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -45,17 +53,30 @@ class TrackInfo(Widget):
         ax = self.width // 2
         ay = self.height // 2
 
+        # terminalio.FONT.get_bounding_box() returns (6, 12)
+        # so for scale 2 that means each glyph is 12 x 24
+        lines = {
+            0: (ax, ay - 36),
+            1: (ax, ay - 12),
+            2: (ax, ay + 12),
+            3: (ax, ay + 36),
+        }
+
         self._artist_lbl = label.Label(terminalio.FONT, text='Artist Name', scale=2)
         self._artist_lbl.anchor_point = (0.5, 0.5)
-        self._artist_lbl.anchored_position = (ax, ay - 24)
+        self._artist_lbl.anchored_position = lines[2]
 
         self._album_lbl = label.Label(terminalio.FONT, text='Album Name', scale=2)
         self._album_lbl.anchor_point = (0.5, 0.5)
-        self._album_lbl.anchored_position = (ax, ay)
+        self._album_lbl.anchored_position = lines[1]
 
         self._track_lbl = label.Label(terminalio.FONT, text='Track Name', scale=2)
         self._track_lbl.anchor_point = (0.5, 0.5)
-        self._track_lbl.anchored_position = (ax, ay + 24)
+        self._track_lbl.anchored_position = lines[0]
+
+        self._media_lbl = label.Label(terminalio.FONT, text='Media Title', scale=2)
+        self._media_lbl.anchor_point = (0.5, 0.5)
+        self._media_lbl.anchored_position = lines[3]
 
         self._prev_indicator = label.Label(terminalio.FONT, text='', scale=4)
         self._prev_indicator.anchor_point = (0.0, 0.5)
@@ -69,6 +90,7 @@ class TrackInfo(Widget):
         self.append(self._artist_lbl)
         self.append(self._album_lbl)
         self.append(self._track_lbl)
+        self.append(self._media_lbl)
         self.append(self._prev_indicator)
         self.append(self._next_indicator)
 
