@@ -259,7 +259,19 @@ async def main():
 
     async def _track_info():
         # TODO: replace polling with events
-        track = {}
+        track = {
+            'title': ui.track_info.track_name,
+            'artist': ui.track_info.artist_name,
+            'album': ui.track_info.album_name,
+            'album_art': '',
+            'position': ui.play_progress.play_position,
+            'duration': ui.play_progress.track_duration,
+            'queue_position': 0,
+        }
+        medium = {
+            'title': ui.track_info.media_title,
+            'medium_art': ''
+        }
         while True:
             loop_start = time.monotonic()
             if wifi.radio.connected and player:
@@ -270,21 +282,35 @@ async def main():
                     continue
                 if cur_track and cur_track != track:
                     # update artist, album, title
-                    if cur_track.get('artist') != track.get('artist'):
-                        ui.track_info.artist_name = cur_track.get('artist') or 'No Artist'
-                    if cur_track.get('album') != track.get('album'):
-                        ui.track_info.album_name = cur_track.get('album') or ''
-                    if cur_track.get('title') != track.get('title'):
-                        new_title = cur_track.get('title') or 'No Title'
-                        if new_title.startswith(cur_track.get('artist')):
+                    track_changed = False
+                    if cur_track['artist'] != track['artist']:
+                        ui.track_info.artist_name = cur_track['artist'] or 'No Artist'
+                        track_changed = True
+                    if cur_track['album'] != track['album']:
+                        ui.track_info.album_name = cur_track['album']
+                        track_changed = True
+                    if cur_track['title'] != track['title']:
+                        new_title = cur_track['title'] or 'No Title'
+                        if new_title.startswith(cur_track['artist']):
                             new_title = new_title.split(' - ')[-1]
                         ui.track_info.track_name = new_title
+                        track_changed = True
                     # update duration
-                    if cur_track.get('duration') != track.get('duration'):
-                        ui.play_progress.track_duration = cur_track.get('duration')
+                    if cur_track['duration'] != track['duration']:
+                        ui.play_progress.track_duration = cur_track['duration']
                     # update position
-                    if cur_track.get('position') is not None:
-                        ui.play_progress.play_position = cur_track.get('position')
+                    if cur_track['position'] is not None:
+                        ui.play_progress.play_position = cur_track['position']
+                    # TODO: this could be a background task or a separate handler triggered via event
+                    # update media title
+                    # TODO: use album art
+                    # TODO: use medium to show an icon
+                    if track_changed:
+                        cur_medium = await player.medium_info()
+                        if cur_medium and cur_medium != medium:
+                            if cur_medium['title'] != medium['title']:
+                                ui.track_info.media_title = cur_medium['title']
+                            medium = cur_medium
                     track = cur_track
 
             await asyncio.sleep(1 - (time.monotonic() - loop_start))
