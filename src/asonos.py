@@ -259,6 +259,20 @@ class Sonos:
             'queue_position': int(res['Track', 0]) - 1,
         }
 
+    async def medium_info(self):
+        res = await self._upnp_control('AVTransport', 'GetMediaInfo', InstanceID=0)
+        urimetaxml = htmldecode(res.get(('CurrentURIMetaData', 0), ''))
+        if urimetaxml:
+            urimeta = babyxml.xmltodict(urimetaxml)['DIDL-Lite', 0]['item', 0]
+        else:
+            urimeta = {}
+
+        return {
+            'title': htmldecode(urimeta.get(('dc:title', 0), '')),
+            'medium_art': htmldecode(urimeta.get(('upnp:albumArtURI', 0), '')),
+            'medium': res.get(('PlayMedium', 0), ''),
+        }
+
     async def queue_slice(self, count=5, offset=0):
         res = await self._upnp_control('Queue', 'Browse', QueueID=0, StartingIndex=offset, RequestedCount=count)
         if not res:
@@ -266,14 +280,18 @@ class Sonos:
 
         resultxml = htmldecode(res['Result', 0])
         result = babyxml.xmltodict(resultxml)['DIDL-Lite', 0]
+        item_gen = (
+            ((key, idx), item)
+            for (key, idx), item in result.items()
+            if key == 'item'
+        )
 
         queue = []
-        for idx in range(count):
-            item = result['item', idx]
+        for (key, idx), item in item_gen:
             queue.append({
-                'title': item['dc:title', 0],
-                'artist': item['dc:creator', 0],
-                'album': item['upnp:album', 0],
+                'title': htmldecode(item.get(('dc:title', 0), '')),
+                'artist': htmldecode(item.get(('dc:creator', 0), '')),
+                'album': htmldecode(item.get(('upnp:album', 0), '')),
                 'album_art': ''.join((self.base, htmldecode(item['upnp:albumArtURI', 0]))),
                 'duration': item['res_attrs', 0]['duration'],
                 'queue_position': offset + idx,
