@@ -27,6 +27,8 @@ class TrackInfo(Widget):
 
     @track_name.setter
     def track_name(self, new_name):
+        if len(new_name) > 60:
+            new_name = f'{new_name[:57]}...'
         self._track_lbl.text = new_name
 
     @property
