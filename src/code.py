@@ -243,6 +243,22 @@ async def main():
             # update display
             ui.status_bar.ip = new_ip
 
+    async def _state_changed(last_state):
+        while True:
+            if last_state != cur_state:
+                return cur_state
+            await asyncio.sleep(0.25)
+
+    async def _state_based_sleep(delta):
+        interval = 30 if cur_state == 'STOPPED' else 1
+        if delta >= (interval - 0.2):
+            return
+        try:
+            await asyncio.wait_for(_state_changed(cur_state), timeout=interval - delta)
+        except asyncio.TimeoutError:
+            # waited the full duration
+            pass
+
     async def _track_info():
         # TODO: replace polling with events
         track = {
@@ -262,7 +278,6 @@ async def main():
             loop_start = time.monotonic()
             # NOTE: once I get UPnP event subscriptions working this won't be needed
             #       but as a stopgap, poll current track info less frequently when stopped
-            interval = 30 if cur_state == 'STOPPED' else 1
             if wifi.radio.connected and player:
                 try:
                     cur_track = await player.current_track_info()
@@ -295,14 +310,17 @@ async def main():
                     # TODO: use album art
                     # TODO: use medium to show an icon
                     if track_changed:
-                        cur_medium = await player.medium_info()
+                        try:
+                            cur_medium = await player.medium_info()
+                        except asyncio.TimeoutError:
+                            print(f'[{datetime.now()}] TIMEOUT')
                         if cur_medium and cur_medium != medium:
                             if cur_medium['title'] != medium['title']:
                                 ui.track_info.media_title = cur_medium['title']
                             medium = cur_medium
                     track = cur_track
 
-            await asyncio.sleep(interval - (time.monotonic() - loop_start))
+            await _state_based_sleep(time.monotonic() - loop_start)
 
     async def _prev():
         press = ano.events['left_press']
