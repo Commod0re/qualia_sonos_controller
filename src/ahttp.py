@@ -135,18 +135,26 @@ class Response:
             return self._xml
 
 
+def dns_lookup(url_parsed):
+    # TODO: async DNS
+    hostname = url_parsed.netloc
+    port = SCHEME_DEFAULT_PORTS.get(url_parsed.scheme)
+    if ':' in hostname:
+        hostname, port = hostname.split(':')
+        port = int(port)
+
+    *_, (host, port) = pool.getaddrinfo(hostname, port)[0]
+    return host, port
+
+
 async def request(verb, url, headers, body=None):
     # TODO: DNS -- fortunately I'm only working with IPs for now
     # pool.getaddrinfo blocks so that's no good for this
     # maybe an lru_cache would help....
     # anyway, for another time
     url_parsed = urlparse(url)
-    if ':' in url_parsed.netloc:
-        host, port = url_parsed.netloc.split(':')
-        port = int(port)
-    else:
-        host = url_parsed.netloc
-        port = SCHEME_DEFAULT_PORTS.get(url_parsed.scheme)
+    # DNS lookup
+    host, port = dns_lookup(url_parsed)
     
     # basic/auto headers
     headers['Host'] = url_parsed.netloc.lower()
