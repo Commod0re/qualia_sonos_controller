@@ -29,7 +29,7 @@ async def _sock():
     # before connecting does not work right
     # it will immediately fail with either EAGAIN or ETIMEDOUT and never actually seems to succeed
     # instead, set a timeout when connecting and switch to non-blocking after the connection is established
-    s.settimeout(0.5)
+    s.settimeout(2)
     return s
 
 
