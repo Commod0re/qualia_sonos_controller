@@ -150,15 +150,13 @@ def dns_lookup(url_parsed):
 
 
 async def request(verb, url, headers, body=None):
-    # TODO: DNS -- fortunately I'm only working with IPs for now
-    # pool.getaddrinfo blocks so that's no good for this
-    # maybe an lru_cache would help....
-    # anyway, for another time
+    # parse URL
     url_parsed = urlparse(url)
     # DNS lookup
     host, port = dns_lookup(url_parsed)
     
     # basic/auto headers
+    headers['Connection'] = 'close'
     headers['Host'] = url_parsed.netloc.lower()
     if body:
         headers['Content-Length'] = len(body)
@@ -249,8 +247,12 @@ async def request(verb, url, headers, body=None):
                 sock.close()
                 break
         except OSError as e:
-            if e.errno != 11:
-                # not EAGAIN
+            if e.errno == 128:
+                # ENOTCONN - other side closed the connection
+                sock.close()
+                break
+            elif e.errno != 11:
+                # not EAGAIN or ENOTCONN
                 print('READ', repr(e), errno.errorcode.get(e.errno))
             await asyncio.sleep_ms(100)
         else:
