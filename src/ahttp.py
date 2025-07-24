@@ -57,6 +57,9 @@ SCHEME_DEFAULT_PORTS = {
     'http': 80,
     'https': 443,
 }
+TEXT_MIMES = {
+    'application/json',
+}
 
 Request = namedtuple('Request', ['verb', 'url', 'headers'])
 
@@ -75,7 +78,7 @@ class Response:
     @classmethod
     def from_response(cls, request, response):
         header, body = response.split(b'\r\n\r\n', 1)
-        status, *header_lines = header.decode().split('\r\n')
+        status, *header_lines = header.decode('latin-1').split('\r\n')
 
         httpver, status_code, reason = status.split(' ', 2)
         headers = {}
@@ -98,9 +101,20 @@ class Response:
                 chunk_len = int(reader.readline(), 16)
                 chunks.append(reader.read(chunk_len))
                 reader.seek(reader.tell() + 2)
-            body = b''.join(chunks).decode()
+            body = b''.join(chunks)
         else:
-            body = body.decode()
+            body = body
+
+        content_mime, *params = headers.get('content-type', 'application/octet-stream').split(';')
+        charset = None
+        if content_mime.startswith('text/') or content_mime in TEXT_MIMES:
+            charset = 'latin-1'
+        for param in params:
+            name, val = param.split('=')
+            if name == 'charset':
+                charset = val
+        if charset:
+            body = body.decode(charset)
 
         return cls(request, int(status_code), reason, headers, body)
 
