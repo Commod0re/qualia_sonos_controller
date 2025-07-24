@@ -7,6 +7,7 @@ import wifi
 from framebufferio import FramebufferDisplay
 from adafruit_displayio_layout.layouts.linear_layout import LinearLayout
 
+from .widgets.album_art import AlbumArt
 from .widgets.placeholder import Placeholder
 from .widgets.play_progress import PlayProgress
 from .widgets.statusbar import StatusBar
@@ -57,14 +58,16 @@ layout.add_content(status_bar)
 
 # album art area placeholder
 # this will also have the volume indicator
-album_art_placeholder = Placeholder('album_art', width=720, height=400)
-layout.add_content(album_art_placeholder)
+# album_art_placeholder = Placeholder('album_art', width=720, height=400)
+# layout.add_content(album_art_placeholder)
+album_art = AlbumArt(width=720, height=400)
+layout.add_content(album_art)
 
 # volume indicator overlays the album art container
 volume = Volume(width=35, height=70*5)
 volume.anchor_point = (1.0, 0.5)
-volume.anchored_position = (album_art_placeholder.width - 2, album_art_placeholder.height // 2)
-album_art_placeholder.append(volume)
+volume.anchored_position = (album_art.width - 2, album_art.height // 2)
+album_art.append(volume)
 
 # play/pause status and current position indicator area
 play_progress = PlayProgress(height=20, width=720, color=0xaaaaaa)
