@@ -3,6 +3,7 @@ import errno
 import io
 import json
 import random
+import ssl
 import time
 import wifi
 from adafruit_datetime import datetime
@@ -15,6 +16,7 @@ import babyxml
 DEFAULT_TIMEOUT = 60
 
 pool = SocketPool(wifi.radio)
+ssl_context = ssl.create_default_context()
 
 
 async def _sock():
@@ -179,6 +181,8 @@ async def request(verb, url, headers, body=None):
 
     resp = None
     sock = await _sock()
+    if url_parsed.scheme == 'https':
+        sock = ssl_context.wrap_socket(sock)
     await asyncio.sleep(0)
     tag = f'{random.randint(0x1000, 0xffff):04x}'
 
@@ -239,7 +243,7 @@ async def request(verb, url, headers, body=None):
     response_buf = bytearray()
     while True:
         try:
-            read_nbytes, (host, port) = sock.recvfrom_into(read_buf)
+            read_nbytes = sock.recv_into(read_buf, 4096)
             if read_nbytes == 0 and response_buf:
                 # possibly finished reading response
                 sock.close()
