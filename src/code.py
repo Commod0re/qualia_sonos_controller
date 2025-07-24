@@ -1,10 +1,12 @@
 import asyncio
 import collections
+import io
 import os
 import time
 import wifi
 from adafruit_datetime import datetime
 
+import ahttp
 import asonos
 import controls
 import ntp
@@ -224,6 +226,8 @@ async def main():
     print('setting up controls')
     ano = await controls.AnoRotary.new(ui.i2c)
     qbtns = await controls.QualiaButtons.new(ui.i2c)
+    album_art_changed = asyncio.Event()
+    album_art_uri = None
     player = None
     cur_state = None
 
@@ -260,6 +264,7 @@ async def main():
             pass
 
     async def _track_info():
+        nonlocal album_art_uri
         # TODO: replace polling with events
         track = {
             'title': ui.track_info.track_name,
@@ -305,10 +310,19 @@ async def main():
                     # update position
                     if cur_track['position'] is not None:
                         ui.play_progress.play_position = cur_track['position']
+                    # update album_art
+                    if cur_track['album_art'] != track['album_art']:
+                        track['album_art'] = album_art_uri = cur_track['album_art']
+                        # fixups
+                        if 'imgix.net' in album_art_uri:
+                            album_art_uri = (
+                                album_art_uri
+                                    # modify some arguments
+                                    .replace('?w=200&auto=format,compress?w=200', '?w=400&fm=jpg&jpeg-progressive=false')
+                                    .replace('&auto=format,compress', ''))
+                        album_art_changed.set()
                     # TODO: this could be a background task or a separate handler triggered via event
                     # update media title
-                    # TODO: use album art
-                    # TODO: use medium to show an icon
                     if track_changed:
                         try:
                             cur_medium = await player.medium_info()
@@ -321,6 +335,22 @@ async def main():
                     track = cur_track
 
             await _state_based_sleep(time.monotonic() - loop_start)
+
+    # @task_restart('album_art')
+    async def _album_art():
+        while True:
+            await album_art_changed.wait()
+            album_art_changed.clear()
+            if album_art_uri is not None:
+                print(f'loading album_art from {album_art_uri}')
+                resp = await ahttp.get(album_art_uri, {})
+                print('buffering album_art...')
+                buf = io.BytesIO(resp.body)
+                print('show album_art')
+                ui.album_art.show(buf)
+            else:
+                print('clearing album_art')
+                ui.album_art.clear()
 
     async def _prev():
         press = ano.events['left_press']
@@ -366,6 +396,7 @@ async def main():
     loop.create_task(_refresh())
     loop.create_task(_status_ip())
     loop.create_task(_track_info())
+    loop.create_task(_album_art())
     # controls tasks with ui implications
     loop.create_task(_prev())
     loop.create_task(_next())
