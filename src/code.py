@@ -341,7 +341,7 @@ async def main():
         while True:
             await album_art_changed.wait()
             album_art_changed.clear()
-            if album_art_uri is not None:
+            if album_art_uri:
                 print(f'loading album_art from {album_art_uri}')
                 resp = await ahttp.get(album_art_uri, {})
                 print('buffering album_art...')
