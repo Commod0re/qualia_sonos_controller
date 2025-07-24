@@ -248,12 +248,14 @@ class Sonos:
             return None
         trackmeta = babyxml.xmltodict(trackmetaxml)['DIDL-Lite', 0]['item', 0]
         album_art_uri = htmldecode(trackmeta.get(('upnp:albumArtURI', 0), ''))
+        if '://' not in album_art_uri:
+            album_art_uri = ''.join([self.base, album_art_uri])
 
         return {
             'title': htmldecode(trackmeta.get(('dc:title', 0), '')),
             'artist': htmldecode(trackmeta.get(('dc:creator', 0), '')),
             'album': htmldecode(trackmeta.get(('upnp:album', 0), '')),
-            'album_art': ''.join([self.base, album_art_uri]) if album_art_uri else '',
+            'album_art': album_art_uri,
             'position': res['RelTime', 0],
             'duration': res['TrackDuration', 0],
             'queue_position': int(res['Track', 0]) - 1,
@@ -288,11 +290,14 @@ class Sonos:
 
         queue = []
         for (key, idx), item in item_gen:
+            album_art_uri =  htmldecode(item['upnp:albumArtURI', 0])
+            if '://' not in album_art_uri:
+                album_art_uri = ''.join((self.base, album_art_uri))
             queue.append({
                 'title': htmldecode(item.get(('dc:title', 0), '')),
                 'artist': htmldecode(item.get(('dc:creator', 0), '')),
                 'album': htmldecode(item.get(('upnp:album', 0), '')),
-                'album_art': ''.join((self.base, htmldecode(item['upnp:albumArtURI', 0]))),
+                'album_art': album_art_uri,
                 'duration': item['res_attrs', 0]['duration'],
                 'queue_position': offset + idx,
             })
