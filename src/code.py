@@ -5,6 +5,8 @@ import os
 import time
 import wifi
 from adafruit_datetime import datetime
+from microcontroller import watchdog
+from watchdog import WatchDogMode
 
 import ahttp
 import asonos
@@ -391,6 +393,14 @@ async def main():
             else:
                 print('PAUSE')
                 await player.pause()
+
+    @task_restart('tickle_watchdog')
+    async def _tickle_watchdog():
+        watchdog.timeout = 60
+        watchdog.mode = WatchDogMode.RESET
+        while True:
+            await asyncio.sleep(30)
+            watchdog.feed()
 
     # ui tasks
     loop.create_task(_refresh())
