@@ -410,6 +410,8 @@ async def main():
     # controls tasks with ui implications
     loop.create_task(_prev())
     loop.create_task(_next())
+    # watchdog timer
+    loop.create_task(_tickle_watchdog())
 
     print('locating sonoses')
     # TODO: monitor players over time
