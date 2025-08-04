@@ -237,6 +237,7 @@ async def main():
             # waited the full duration
             pass
 
+    @task_restart('track_info')
     async def _track_info():
         nonlocal album_art_uri
         # TODO: replace polling with events
@@ -310,7 +311,7 @@ async def main():
 
             await _state_based_sleep(time.monotonic() - loop_start)
 
-    # @task_restart('album_art')
+    @task_restart('album_art')
     async def _album_art():
         while True:
             await album_art_changed.wait()
@@ -338,6 +339,7 @@ async def main():
                 print('clearing album_art')
                 ui.album_art.clear()
 
+    @task_restart('prev')
     async def _prev():
         press = ano.events['left_press']
         while True:
@@ -351,6 +353,7 @@ async def main():
                 # hide back indicator
                 ui.track_info.hide_icon('prev')
 
+    @task_restart('next')
     async def _next():
         press = ano.events['right_press']
         while True:
