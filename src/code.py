@@ -116,34 +116,6 @@ async def volume(player, cntrl, ev):
         ev.clear()
 
 
-@task_restart('monitor_current_track')
-async def monitor_current_track(player):
-    state = None
-    track = {}
-    pos = None
-    while True:
-        idle = 1
-        if wifi.radio.connected:
-            idle = 1
-            cur_state = await player.state()
-            if cur_state:
-                if cur_state != state:
-                    print(f'now {cur_state}')
-                    state = cur_state
-
-                cur_track = await player.current_track_info()
-                if cur_track:
-                    cur_pos = cur_track.pop('position')
-                    if cur_track != track:
-                        print(f"NOW {cur_state} {cur_track['artist']} - {cur_track['album']} - {cur_track['title']}")
-                        track = cur_track
-                        pos = cur_pos
-                else:
-                    idle = 10
-
-        await asyncio.sleep(idle)
-
-
 async def discover_sonos(player_map):
     # player_map:
     #   players:
