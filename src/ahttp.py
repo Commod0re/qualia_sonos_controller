@@ -2,6 +2,7 @@ import asyncio
 import errno
 import io
 import json
+import os
 import random
 import ssl
 import time
@@ -13,6 +14,7 @@ from socketpool import SocketPool
 import babyxml
 
 
+DEBUG = os.getenv('DEBUG_AHTTP') == '1'
 DEFAULT_TIMEOUT = 60
 
 pool = SocketPool(wifi.radio)
@@ -79,7 +81,12 @@ class Response:
 
     @classmethod
     def from_response(cls, request, response):
-        header, body = response.split(b'\r\n\r\n', 1)
+        try:
+            header, body = response.split(b'\r\n\r\n', 1)
+        except ValueError:
+            if DEBUG:
+                print(response)
+            raise
         status, *header_lines = header.decode('latin-1').split('\r\n')
 
         httpver, status_code, reason = status.split(' ', 2)
@@ -149,7 +156,13 @@ def dns_lookup(url_parsed):
     return host, port
 
 
+reqs_in_flight = set()
+
 async def request(verb, url, headers, body=None):
+    if DEBUG:
+        tag = f'{random.randint(0x1000, 0xffff):04x}'
+        reqs_in_flight.add(tag)
+
     # parse URL
     url_parsed = urlparse(url)
     # DNS lookup
@@ -182,7 +195,6 @@ async def request(verb, url, headers, body=None):
     if url_parsed.scheme == 'https':
         sock = ssl_context.wrap_socket(sock)
     await asyncio.sleep(0)
-    tag = f'{random.randint(0x1000, 0xffff):04x}'
 
     # print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
     # st = time.monotonic()
@@ -196,17 +208,20 @@ async def request(verb, url, headers, body=None):
                 # ECONNRESET - connection reset
                 # ENOTCONN - connection closed
                 # EBADF - bad file descriptor (use after close)
-                print(f'[{datetime.now()}]{tag}_{host}:{port} connection error {e}; retry')
+                if DEBUG:
+                    print(f'[{datetime.now()}]{tag}_{host}:{port} connection error {e}; retry ({len(reqs_in_flight) - 1} other connections live)')
                 await asyncio.sleep(0)
                 sock.close()
                 sock = await _sock()
                 continue
             elif e.errno in {errno.EINPROGRESS, errno.EALREADY, errno.ETIMEDOUT, errno.EAGAIN}:
+                if DEBUG:
+                    print(f'[{datetime.now()}]{tag}_{host}:{port} connection error {e}; sleep 250ms ({len(reqs_in_flight) - 1} other connections live)')
                 # EINPROGRESS - connection is currently in progress
                 # EALREADY - already connecting
                 # ETIMEDOUT - operation timed out
                 # EAGAIN - try again
-                await asyncio.sleep_ms(100)
+                await asyncio.sleep_ms(250)
                 continue
             elif e.errno == 127:
                 # EISCONN - already connected
@@ -222,11 +237,13 @@ async def request(verb, url, headers, body=None):
         # we aren't connected. start over
         try:
             # send request
-            # print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
+            if DEBUG:
+                print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
             sock.send(request_raw)
-        except BrokenPipeError as e:
+        except (BrokenPipeError, OSError) as e:
             # jk - not connected! try again
-            print(f'[{datetime.now()}]{tag}_{host}:{port} connection error BrokenPipeError({e}); retry')
+            if DEBUG:
+                print(f'[{datetime.now()}]{tag}_{host}:{port} connection error {type(e)}({e}); retry')
             await asyncio.sleep(0)
             sock.close()
             sock = await _sock()
@@ -258,6 +275,9 @@ async def request(verb, url, headers, body=None):
         else:
             response_buf += read_buf[:read_nbytes]
             read_buf[:read_nbytes] = b'\x00' * read_nbytes
+
+    if DEBUG:
+        reqs_in_flight.remove(tag)
 
     return Response.from_response(request_info, response_buf)
 

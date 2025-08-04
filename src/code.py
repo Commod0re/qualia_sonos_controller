@@ -345,7 +345,19 @@ async def main():
             album_art_changed.clear()
             if album_art_uri:
                 print(f'loading album_art from {album_art_uri}')
-                resp = await ahttp.get(album_art_uri, {})
+                resp = None
+                while not resp:
+                    try:
+                        resp = await ahttp.get(album_art_uri, {})
+                    except asyncio.TimeoutError:
+                        print(f'[{datetime.now()}] TIMEOUT - retry')
+                        await asyncio.sleep_ms(200)
+                    except OSError as e:
+                        print(f'[{datetime.now()}] {type(e)}({e}) - retry')
+                        await asyncio.sleep_ms(200)
+                    else:
+                        break
+
                 print('buffering album_art...')
                 buf = io.BytesIO(resp.body)
                 print('show album_art')
