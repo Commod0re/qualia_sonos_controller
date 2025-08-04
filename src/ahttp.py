@@ -15,6 +15,7 @@ import babyxml
 
 
 DEBUG = os.getenv('DEBUG_AHTTP') == '1'
+DEBUG2 = os.getenv('DEBUG_AHTTP') == '2'
 DEFAULT_TIMEOUT = 60
 
 pool = SocketPool(wifi.radio)
@@ -196,8 +197,9 @@ async def request(verb, url, headers, body=None):
         sock = ssl_context.wrap_socket(sock)
     await asyncio.sleep(0)
 
-    # print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
-    # st = time.monotonic()
+    if DEBUG2:
+        print(f'[{datetime.now()}]{tag}_{host}:{port} Connecting...')
+        st = time.monotonic()
     while True:
         try:
             sock.connect((host, port))
@@ -237,7 +239,7 @@ async def request(verb, url, headers, body=None):
         # we aren't connected. start over
         try:
             # send request
-            if DEBUG:
+            if DEBUG2:
                 print(f'[{datetime.now()}]{tag}_{host}:{port} try send after EISCONN ({time.monotonic() - st}s)')
             sock.send(request_raw)
         except (BrokenPipeError, OSError) as e:
