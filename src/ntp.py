@@ -1,6 +1,7 @@
 import asyncio
 import os
 import rtc
+import wifi
 
 import adafruit_ntp
 from adafruit_datetime import datetime, timedelta
@@ -37,8 +38,11 @@ def ntp():
         try:
             clock.datetime = ntp_client.datetime
         except OSError as e:
-            print(e)
-            pass
+            if e.errno == 32:
+                # broken pipe error
+                print(f'ntp() broken pipe error - {wifi.radio.connected=}')
+            else:
+                print(f'ntp() OSError {e}')
         else:
             break
 
