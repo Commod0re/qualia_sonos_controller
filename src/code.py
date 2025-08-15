@@ -140,7 +140,7 @@ def load_from_cache():
     try:
         mtime = timezone.fromlocaltime(os.stat('/player.cachhe')[8])
         now = datetime.now()
-        cache_expires = mtime + timedelta(days=7)
+        cache_expires = mtime + timedelta(days=30)
         if now <= cache_expires:
             with open('/player.cache', 'r') as f:
                 return asonos.Sonos(**json.load(f))
