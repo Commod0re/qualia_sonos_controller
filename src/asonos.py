@@ -63,6 +63,10 @@ class Sonos:
         return self._ip
 
     @property
+    def port(self):
+        return self._port
+
+    @property
     def base(self):
         return self._base
 
@@ -87,7 +91,7 @@ class Sonos:
         self._port = kwargs.get('port', 1400)
         # stuff we might have up front
         # if we got here from UPnP or cache
-        self._base = kwargs.get('base') or f'http://{ip}:{self._port}'
+        self._base = kwargs.get('base') or f'http://{ip}:{self.port}'
         self._device_info = kwargs.get('device_info')
         self._zone_attrs = {}
         self._household_id = kwargs.get('household_id')
