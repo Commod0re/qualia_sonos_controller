@@ -1,10 +1,12 @@
 import asyncio
 import collections
 import io
+import json
 import os
+import storage
 import time
 import wifi
-from adafruit_datetime import datetime
+from adafruit_datetime import datetime, timedelta
 from microcontroller import watchdog
 from watchdog import WatchDogMode
 
@@ -13,6 +15,7 @@ import asonos
 import controls
 import ntp
 import ssdp
+import timezone
 import ui
 
 
@@ -114,6 +117,38 @@ async def volume(player, cntrl, ev):
             await player.volume(new_vol)
             pos = new_pos
         ev.clear()
+
+
+
+def cache_player(player):
+    ro = storage.getmount("/").readonly
+    if ro:
+        storage.remount("/", readonly=False)
+    with open('/player.cache', 'w') as f:
+        # dump approximation of ssdp_parsed
+        json.dump({
+            'ip': player.ip,
+            'port': player.port,
+            'base': player.base,
+            'household_id': player.household_id,
+        }, f)
+    if ro:
+        storage.remount("/", readonly=True)
+
+
+def load_from_cache():
+    try:
+        mtime = timezone.fromlocaltime(os.stat('/player.cachhe')[8])
+        now = datetime.now()
+        cache_expires = mtime + timedelta(days=7)
+        if now <= cache_expires:
+            with open('/player.cache', 'r') as f:
+                return asonos.Sonos(**json.load(f))
+    except OSError:
+        # no player cache; nothing to do
+        pass
+    # no cache or cache expired
+    return None
 
 
 async def discover_sonos(player_map):
@@ -299,6 +334,7 @@ async def main():
                     # TODO: this could be a background task or a separate handler triggered via event
                     # update media title
                     if track_changed:
+                        print(f'[{datetime.now()}] track is now {cur_track["artist"]} - {cur_track["album"]} - {cur_track["title"]}')
                         try:
                             cur_medium = await player.medium_info()
                         except asyncio.TimeoutError:
@@ -400,16 +436,27 @@ async def main():
     # watchdog timer
     loop.create_task(_tickle_watchdog())
 
-    print('locating sonoses')
-    # TODO: monitor players over time
-    # TODO: make this selectable instead of hardcoded
-    players = {'players': {}, 'rooms': {}}
-    ui.status_bar.sonos = 'connecting...'
-    target_room = 'Mike’s Office'
-    while not players['rooms'].get(target_room, {}).get('primary'):
-        await discover_sonos(players)
+    player_from_cache = load_from_cache()
+    if player_from_cache:
+        try:
+            player_from_cache.connect()
+        except Exception as e:
+            print(f'[{datetime.now()}] Exception: {type(e)}({e})')
+        else:
+            player = player_from_cache
 
-    player = players['rooms'][target_room]['primary']
+    if not player:
+        print('locating sonoses')
+        # TODO: monitor players over time
+        # TODO: make this selectable instead of hardcoded
+        players = {'players': {}, 'rooms': {}}
+        ui.status_bar.sonos = 'connecting...'
+        target_room = 'Mike’s Office'
+        while not players['rooms'].get(target_room, {}).get('primary'):
+            await discover_sonos(players)
+
+        player = players['rooms'][target_room]['primary']
+        cache_player(player)
     ui.status_bar.sonos = player.room_name.replace('’', "'")
 
     print('connecting event handlers')
