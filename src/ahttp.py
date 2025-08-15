@@ -14,7 +14,7 @@ from socketpool import SocketPool
 import babyxml
 
 
-DEBUG = os.getenv('DEBUG_AHTTP') == '1'
+DEBUG = os.getenv('DEBUG_AHTTP') in {'1', '2'}
 DEBUG2 = os.getenv('DEBUG_AHTTP') == '2'
 DEFAULT_TIMEOUT = 60
 
@@ -250,7 +250,8 @@ async def request(verb, url, headers, body=None):
             sock.close()
             sock = await _sock()
         else:
-            # print(f'[{datetime.now()}]{tag}_{host}:{port} send success ({time.monotonic() - st}s)')
+            if DEBUG2:
+                print(f'[{datetime.now()}]{tag}_{host}:{port} send success ({time.monotonic() - st}s)')
             await asyncio.sleep(0)
             # post-send await point for concurrency
             break
