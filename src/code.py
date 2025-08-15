@@ -119,7 +119,6 @@ async def volume(player, cntrl, ev):
         ev.clear()
 
 
-
 def cache_player(player):
     ro = storage.getmount("/").readonly
     if ro:
@@ -138,7 +137,7 @@ def cache_player(player):
 
 def load_from_cache():
     try:
-        mtime = timezone.fromlocaltime(os.stat('/player.cachhe')[8])
+        mtime = timezone.fromlocaltime(os.stat('/player.cache')[8])
         now = datetime.now()
         cache_expires = mtime + timedelta(days=30)
         if now <= cache_expires:
@@ -438,8 +437,9 @@ async def main():
 
     player_from_cache = load_from_cache()
     if player_from_cache:
+        print('trying player from cache...')
         try:
-            player_from_cache.connect()
+            await player_from_cache.connect()
         except Exception as e:
             print(f'[{datetime.now()}] Exception: {type(e)}({e})')
         else:
