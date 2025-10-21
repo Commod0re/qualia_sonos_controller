@@ -244,6 +244,7 @@ async def _aread(read_buf, buf, sock):
             if e.errno == 128:
                 # ENOTCONN - other side closed the connection
                 sock.close()
+                return 0
             elif e.errno != 11:
                 # not EAGAIN
                 print(READ, repr(e), errno.errorcode.get(e.errno))
