@@ -4,6 +4,7 @@ import io
 import json
 import os
 import storage
+import traceback
 import time
 import wifi
 from adafruit_datetime import datetime, timedelta
@@ -50,7 +51,7 @@ def task_restart(name):
 
                 except Exception as e:
                     print(f'[{name}] caught unhandled exception {type(e).__name__}')
-                    print(e)
+                    traceback.print_exception(e)
 
                 await asyncio.sleep_ms(10)
 
