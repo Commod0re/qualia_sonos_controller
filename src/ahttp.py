@@ -81,40 +81,8 @@ class Response:
         self._xml = None
 
     @classmethod
-    def from_response(cls, request, response):
-        try:
-            header, body = response.split(b'\r\n\r\n', 1)
-        except ValueError:
-            if DEBUG:
-                print(response)
-            raise
-        status, *header_lines = header.decode('latin-1').split('\r\n')
-
+    def from_response(cls, request, status, headers, body):
         httpver, status_code, reason = status.split(' ', 2)
-        headers = {}
-        for header_line in header_lines:
-            header_name, header_value = header_line.split(': ')
-            header_name = header_name.lower()
-            if header_name not in headers:
-                headers[header_name] = header_value
-            else:
-                existing = headers[header_name]
-                if isinstance(existing, list):
-                    existing.append(header_value)
-                else:
-                    headers[header_name] = [existing, header_value]
-
-        if 'chunked' in headers.get('transfer-encoding', ''):
-            chunks = []
-            reader = io.BytesIO(body)
-            while reader.tell() < len(body):
-                chunk_len = int(reader.readline(), 16)
-                chunks.append(reader.read(chunk_len))
-                reader.seek(reader.tell() + 2)
-            body = b''.join(chunks)
-        else:
-            body = body
-
         content_mime, *params = headers.get('content-type', 'application/octet-stream').split(';')
         charset = None
         if content_mime.startswith('text/') or content_mime in TEXT_MIMES:
@@ -125,7 +93,6 @@ class Response:
                 charset = val
         if charset:
             body = body.decode(charset)
-
         return cls(request, int(status_code), reason, headers, body)
 
     def __repr__(self):
@@ -257,32 +224,109 @@ async def request(verb, url, headers, body=None):
             break
 
     # await the response
-    read_buf = bytearray(4096)
-    response_buf = bytearray()
-    while True:
-        try:
-            read_nbytes = sock.recv_into(read_buf, 4096)
-            if read_nbytes == 0 and response_buf:
-                # possibly finished reading response
-                sock.close()
-                break
-        except OSError as e:
-            if e.errno == 128:
-                # ENOTCONN - other side closed the connection
-                sock.close()
-                break
-            elif e.errno != 11:
-                # not EAGAIN or ENOTCONN
-                print('READ', repr(e), errno.errorcode.get(e.errno))
-            await asyncio.sleep_ms(100)
-        else:
-            response_buf += read_buf[:read_nbytes]
-            read_buf[:read_nbytes] = b'\x00' * read_nbytes
+    # read status line and headers
+    # this often also starts to read the body
+    status, headers, body_buf = await _read_headers(sock)
+    # read the rest of the body
+    body_buf = await _read_body(sock, body_buf, headers)
 
     if DEBUG:
         reqs_in_flight.remove(tag)
 
-    return Response.from_response(request_info, response_buf)
+    return Response.from_response(request_info, status, headers, body_buf)
+
+
+async def _aread(read_buf, buf, sock):
+    while True:
+        try:
+            read_nbytes = sock.recv_into(read_buf, len(read_buf))
+        except OSError as e:
+            if e.errno == 128:
+                # ENOTCONN - other side closed the connection
+                sock.close()
+            elif e.errno != 11:
+                # not EAGAIN
+                print(READ, repr(e), errno.errorcode.get(e.errno))
+            await asyncio.sleep_ms(100)
+        else:
+            buf += read_buf[:read_nbytes]
+            read_buf[:read_nbytes] = b'\x00' * read_nbytes
+            return read_nbytes
+
+
+async def _read_headers(sock):
+    read_buf = bytearray(64)
+    headers_buf = bytearray()
+
+    # try to read all headers
+    while b'\r\n\r\n' not in headers_buf:
+        await _aread(read_buf, headers_buf, sock)
+        # concurrency point
+        await asyncio.sleep(0)
+
+    header, body = headers_buf.split(b'\r\n\r\n', 1)
+    # parse status and header lines
+    status, *header_lines = header.decode('latin-1').split('\r\n')
+    headers = {}
+    for header_line in header_lines:
+        header_name, header_value = header_line.split(': ')
+        header_name = header_name.lower()
+        if header_name not in headers:
+            headers[header_name] = header_value
+        else:
+            existing = headers[header_name]
+            if isinstance(existing, list):
+                existing.append(header_value)
+            else:
+                headers[header_name] = [existing, header_value]
+
+    return status, headers, body
+
+
+async def _read_body(sock, body_buf, headers):
+    # read body
+    if 'chunked' in headers.get('transfer-encoding', ''):
+        # raise NotImplementedError('transfer-encoding: chunked')
+        # reset body_buf and sync up with whatever we've read so far
+        already_read, body_buf = body_buf, bytearray()
+        while True:
+            # try to read the next chunk size
+            while b'\r\n' not in already_read:
+                next_read_buf = bytearray(16)
+                await _aread(next_read_buf, already_read, sock)
+                await asyncio.sleep(0)
+
+            # pop chunk length off already_read and parse it
+            chunk_len_raw, already_read = already_read.split(b'\r\n', 1)
+            chunk_len = int(chunk_len_raw.decode('latin-1'), 16)
+            if chunk_len == 0:
+                break
+
+            # if the next chunk is partial, read it
+            while len(already_read) < chunk_len + 2:
+                rest_buf = bytearray(chunk_len + 2 - len(already_read))
+                await _aread(rest_buf, already_read, sock)
+                await asyncio.sleep(0)
+
+            # pop data chunk off already_read and onto body_buf
+            # make sure to consume the CRLF trailer too
+            body_buf += already_read[:chunk_len]
+            already_read = already_read[chunk_len + 2:]
+
+    else:
+        # if content-encoding is not chunked then we can use content-length
+        # to figure out when we're done reading
+        content_length = int(headers['content-length'])
+        read_buf = bytearray(1024)
+        while len(body_buf) < content_length:
+            await _aread(read_buf, body_buf, sock)
+            # concurrency point
+            await asyncio.sleep(0)
+
+    # done reading body; close the socket
+    sock.close()
+
+    return body_buf
 
 
 async def get(url, headers, body=None, timeout=DEFAULT_TIMEOUT):
