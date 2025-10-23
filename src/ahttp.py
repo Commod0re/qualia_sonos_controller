@@ -247,7 +247,7 @@ async def _aread(read_buf, buf, sock):
                 return 0
             elif e.errno != 11:
                 # not EAGAIN
-                print(READ, repr(e), errno.errorcode.get(e.errno))
+                print('READ', repr(e), errno.errorcode.get(e.errno))
             await asyncio.sleep_ms(100)
         else:
             buf += read_buf[:read_nbytes]
