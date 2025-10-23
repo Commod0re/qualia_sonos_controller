@@ -20,6 +20,7 @@ class PlayerManager:
         self.player = None
         self.player_name = None
         self.connected = asyncio.Event()
+        self.callback_events = {}
 
     @staticmethod
     def init_storage():
@@ -44,10 +45,6 @@ class PlayerManager:
             json.dump({
                 'player_name': self.player.room_name
             }, f)
-
-    def _fire_event(self, ev_name):
-        for ev in self.event_tree[ev_name]:
-            ev.set()
 
     async def load_player(self):
         # load from cache
@@ -77,6 +74,7 @@ class PlayerManager:
             except Exception as e:
                 print(f'[{datetime.now()}] cache_player failed Exception: {type(e)}({e})')
 
+        self.callback_events['AVTransport'] = await self.player.subscribe('AVTransport')
         self.connected.set()
         return self.player
 
