@@ -1,4 +1,5 @@
 import asyncio
+import babyxml
 import collections
 import io
 import json
@@ -15,6 +16,7 @@ import controls
 import event
 import ntp
 import ui
+from asonos import htmldecode
 from playermanager import PlayerManager
 
 
@@ -130,32 +132,21 @@ async def main():
             # update display
             ui.status_bar.ip = new_ip
 
-    async def _state_changed(last_state):
-        while True:
-            if last_state != cur_state:
-                return cur_state
-            await asyncio.sleep(0.25)
-
-    async def _state_based_sleep(delta):
-        interval = 30 if cur_state == 'STOPPED' else 1
-        if delta >= (interval - 0.2):
-            return
-        try:
-            await asyncio.wait_for(_state_changed(cur_state), timeout=interval - delta)
-        except asyncio.TimeoutError:
-            # waited the full duration
-            pass
-
     @task_restart('avtransport_event_handler')
     async def _avtransport():
         nonlocal cur_state
         await player_manager.connected.wait()
         ev = player_manager.callback_events['AVTransport']
 
+        last_album_art_uri = None
+        track = {
+            'title': ui.track_info.track_name,
+            'artist': ui.track_info.artist_name,
+            'album': ui.track_info.album_name,
+        }
         # position, duration = ui.play_progress.play_position, ui.play_progress.track_duration
         while True:
-            await ev.wait()
-            last_change = ev.data
+            last_change = await ev.wait()
             ev.clear()
 
             # update player state
@@ -163,84 +154,37 @@ async def main():
             # TODO: update current play position
             # update current track duration
             ui.play_progress.track_duration = last_change['CurrentTrackDuration_attrs', 0]['val']
-            # TODO: update current track info
-            # TODO: update current medium info
-            # TODO: update album art uri
+            trackmeta = (babyxml.xmltodict(htmldecode(last_change['CurrentTrackMetaData_attrs', 0]['val']))
+                            .get(('DIDL-Lite', 0), {})
+                            .get(('item', 0), {}))
+            # update current track info
+            cur_track = {
+                'title': htmldecode(trackmeta.get(('dc:title', 0), '')),
+                'artist': htmldecode(trackmeta.get(('dc:creator', 0), '')),
+                'album': htmldecode(trackmeta.get(('upnp:album', 0), '')),
+            }
+            if track != cur_track:
+                ui.track_info.artist_name = cur_track['artist']
+                ui.track_info.album_name = cur_track['album']
+                ui.track_info.track_name = cur_track['title']
+                track = cur_track
+                print(f'[{datetime.now()}] track is now {cur_track["artist"]} - {cur_track["album"]} - {cur_track["title"]}')
 
-    @task_restart('track_info')
-    async def _track_info():
-        # TODO: replace polling with events
-        track = {
-            'title': ui.track_info.track_name,
-            'artist': ui.track_info.artist_name,
-            'album': ui.track_info.album_name,
-            'album_art': '',
-            'position': ui.play_progress.play_position,
-            'duration': ui.play_progress.track_duration,
-            'queue_position': 0,
-        }
-        medium = {
-            'title': ui.track_info.media_title,
-            'medium_art': ''
-        }
-        await player_manager.connected.wait()
-        while True:
-            loop_start = time.monotonic()
-            # NOTE: once I get UPnP event subscriptions working this won't be needed
-            #       but as a stopgap, poll current track info less frequently when stopped
-            if player_manager.is_connected:
-                try:
-                    cur_track = await player_manager.player.current_track_info()
-                except asyncio.TimeoutError:
-                    print(f'[{datetime.now()}] TIMEOUT - retry')
-                    continue
-                if cur_track and cur_track != track:
-                    # update artist, album, title
-                    track_changed = False
-                    if cur_track['artist'] != track['artist']:
-                        ui.track_info.artist_name = cur_track['artist'] or 'No Artist'
-                        track_changed = True
-                    if cur_track['album'] != track['album']:
-                        ui.track_info.album_name = cur_track['album']
-                        track_changed = True
-                    if cur_track['title'] != track['title']:
-                        new_title = cur_track['title'] or 'No Title'
-                        if new_title.startswith(cur_track['artist']):
-                            new_title = new_title.split(' - ')[-1]
-                        ui.track_info.track_name = new_title
-                        track_changed = True
-                    # update duration
-                    if cur_track['duration'] != track['duration']:
-                        ui.play_progress.track_duration = cur_track['duration']
-                    # update position
-                    if cur_track['position'] is not None:
-                        ui.play_progress.play_position = cur_track['position']
-                    # update album_art
-                    if cur_track['album_art'] != track['album_art']:
-                        track['album_art'] = album_art_uri = cur_track['album_art']
-                        # fixups
-                        if 'imgix.net' in album_art_uri:
-                            album_art_uri = (
-                                album_art_uri
-                                    # modify some arguments
-                                    .replace('?w=200&auto=format,compress?w=200', '?w=400&fm=jpg&jpeg-progressive=false')
-                                    .replace('&auto=format,compress', ''))
-                            album_art_changed.set(album_art_uri)
-                    # TODO: this could be a background task or a separate handler triggered via event
-                    # update media title
-                    if track_changed:
-                        print(f'[{datetime.now()}] track is now {cur_track["artist"]} - {cur_track["album"]} - {cur_track["title"]}')
-                        try:
-                            cur_medium = await player_manager.player.medium_info()
-                        except asyncio.TimeoutError:
-                            print(f'[{datetime.now()}] TIMEOUT')
-                        if cur_medium and cur_medium != medium:
-                            if cur_medium['title'] != medium['title']:
-                                ui.track_info.media_title = cur_medium['title']
-                            medium = cur_medium
-                    track = cur_track
+            # update album art uri
+            album_art_uri = (
+                htmldecode(trackmeta.get(('upnp:albumArtURI', 0), ''))
+                    # modify some arguments
+                    .replace('?w=200&auto=format,compress?w=200', '?w=400&fm=jpg&jpeg-progressive=false')
+                    .replace('&auto=format,compress', ''))
+            if album_art_uri and '://' not in album_art_uri:
+                album_art_uri = f'{player_manager.player.base}{album_art_uri}'
+            if album_art_uri != last_album_art_uri:
+                album_art_changed.set(album_art_uri)
+                last_album_art_uri = album_art_uri
 
-            await _state_based_sleep(time.monotonic() - loop_start)
+            # update current medium info
+            urimeta = babyxml.xmltodict(htmldecode(last_change['AVTransportURIMetaData_attrs', 0]['val']))['DIDL-Lite', 0]['item', 0]
+            ui.track_info.media_title = htmldecode(urimeta.get(('dc:title', 0), ''))
 
     @task_restart('album_art')
     async def _album_art():
@@ -300,12 +244,17 @@ async def main():
 
     @task_restart('play_pause')
     async def _play_pause():
+        nonlocal cur_state
         on_select_press = ano.events['select_press']
         while True:
             await on_select_press.wait()
             on_select_press.clear()
 
             if player_manager.is_connected:
+                # I wish it didn't have to be this way
+                # but upnp events are not always timely
+                # so we can't rely on being perfectly synced that way
+                cur_state = await player_manager.player.state()
                 if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
                     ui.track_info.show_icon('play')
                     await player_manager.player.play()
@@ -345,10 +294,8 @@ async def main():
     print('connecting event handlers')
     # ui tasks
     loop.create_task(_refresh())
-    loop.create_task(_avtransport())
-    # loop.create_task(_player_state())
     loop.create_task(_status_ip())
-    loop.create_task(_track_info())
+    loop.create_task(_avtransport())
     loop.create_task(_album_art())
     # controls tasks with ui implications
     loop.create_task(_prev())
