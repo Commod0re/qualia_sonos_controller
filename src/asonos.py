@@ -5,6 +5,7 @@ from socketpool import SocketPool
 
 import ahttp
 import babyxml
+import event
 
 
 server = biplane.Server()
@@ -13,20 +14,6 @@ sonos_client_registry = {}
 sonos_event_registry = {}
 sonos_sid_registry = {}
 sonos_client_sid_registry = {}
-
-
-class EventWithData(asyncio.Event):
-    def __init__(self):
-        super().__init__()
-        self.data = None
-
-    def set(self, data):
-        self.data = data
-        super().set()
-
-    def clear(self):
-        self.data = None
-        super().clear()
 
 
 def htmldecode(text):
@@ -142,7 +129,7 @@ class Sonos:
         resp = await ahttp.request('SUBSCRIBE', url, headers)
         sonos_sid_registry[self.ip, service] = resp.headers['sid']
         sonos_client_sid_registry[resp.headers['sid'], service] = self
-        sonos_event_registry[resp.headers['sid'], service] = ev = EventWithData()
+        sonos_event_registry[resp.headers['sid'], service] = ev = event.EventWithData()
         print(f'subscribed to events with sid={resp.headers["sid"]}')
         return ev
 
