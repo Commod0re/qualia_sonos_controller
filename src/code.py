@@ -99,27 +99,6 @@ async def wifi_roaming():
                 print('wifi connected')
 
 
-@task_restart('volume')
-async def volume(player, cntrl, ev):
-    # get initial position for delta tracking
-    pos = cntrl.encoder.position
-    vol = ui.volume.volume = await player.volume()
-
-    while True:
-        await ev.wait()
-        # get new encoder position and calculate delta from last time
-        new_pos = cntrl.encoder.position
-        delta = new_pos - pos
-
-        # if position changed, update the UI and speaker
-        if delta:
-            new_vol = max(0, min(100, vol + delta))
-            vol = ui.volume.volume = new_vol
-            await player.volume(new_vol)
-            pos = new_pos
-        ev.clear()
-
-
 def cache_player(player):
     ro = storage.getmount("/").readonly
     if ro:
@@ -417,6 +396,24 @@ async def main():
                 print('PAUSE')
                 await player.pause()
 
+    @task_restart('volume')
+    async def _volume():
+        ev = ano.events['encoder']
+        # get initial encoder position for delta tracking
+        pos = ano.encoder.position
+        vol = ui.volume.volume = await player.volume()
+
+        while True:
+            await ev.wait()
+            # get new encoder position and calculate delta from last time
+            new_pos = ano.encoder.position
+            delta, pos = new_pos - pos, new_pos
+
+            # if position changed, update the UI and speaker
+            if delta:
+                vol = ui.volume.volume = await player.volume(vol + delta)
+            ev.clear()
+
     @task_restart('tickle_watchdog')
     async def _tickle_watchdog():
         watchdog.timeout = 60
@@ -462,7 +459,7 @@ async def main():
 
     print('connecting event handlers')
     loop.create_task(_play_pause(player, ano.events['select_press']))
-    loop.create_task(volume(player, ano, ano.events['encoder']))
+    loop.create_task(_volume())
 
     print('ready')
     while True:
