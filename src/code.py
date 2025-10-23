@@ -110,7 +110,6 @@ async def main():
     qbtns = await controls.QualiaButtons.new(ui.i2c)
     album_art_changed = asyncio.Event()
     album_art_uri = None
-    player = None
     cur_state = None
     player_manager = PlayerManager()
     player_manager.init_storage()
@@ -164,13 +163,14 @@ async def main():
             'title': ui.track_info.media_title,
             'medium_art': ''
         }
+        await player_manager.connected.wait()
         while True:
             loop_start = time.monotonic()
             # NOTE: once I get UPnP event subscriptions working this won't be needed
             #       but as a stopgap, poll current track info less frequently when stopped
-            if wifi.radio.connected and player:
+            if player_manager.is_connected:
                 try:
-                    cur_track = await player.current_track_info()
+                    cur_track = await player_manager.player.current_track_info()
                 except asyncio.TimeoutError:
                     print(f'[{datetime.now()}] TIMEOUT - retry')
                     continue
@@ -211,7 +211,7 @@ async def main():
                     if track_changed:
                         print(f'[{datetime.now()}] track is now {cur_track["artist"]} - {cur_track["album"]} - {cur_track["title"]}')
                         try:
-                            cur_medium = await player.medium_info()
+                            cur_medium = await player_manager.player.medium_info()
                         except asyncio.TimeoutError:
                             print(f'[{datetime.now()}] TIMEOUT')
                         if cur_medium and cur_medium != medium:
@@ -256,11 +256,11 @@ async def main():
         while True:
             await press.wait()
             press.clear()
-            if wifi.radio.connected and player:
+            if player_manager.is_connected:
                 # show back indicator
                 ui.track_info.show_icon('prev')
                 # make the call
-                await player.prev()
+                await player_manager.player.prev()
                 # hide back indicator
                 ui.track_info.hide_icon('prev')
 
@@ -270,34 +270,37 @@ async def main():
         while True:
             await press.wait()
             press.clear()
-            if wifi.radio.connected and player:
+            if player_manager.is_connected:
                 # show next indicator
                 ui.track_info.show_icon('next')
-                await player.next()
+                await player_manager.player.next()
                 # hide next indicator
                 ui.track_info.hide_icon('next')
 
     @task_restart('play_pause')
-    async def _play_pause(player, ev):
+    async def _play_pause():
         nonlocal cur_state
+        on_select_press = ano.events['select_press']
         while True:
-            await ev.wait()
-            ev.clear()
+            await on_select_press.wait()
+            on_select_press.clear()
 
-            cur_state = await player.state()
-            if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
-                print('PLAY')
-                await player.play()
-            else:
-                print('PAUSE')
-                await player.pause()
+            if player_manager.is_connected:
+                cur_state = await player_manager.player.state()
+                if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
+                    print('PLAY')
+                    await player_manager.player.play()
+                else:
+                    print('PAUSE')
+                    await player_manager.player.pause()
 
     @task_restart('volume')
     async def _volume():
         ev = ano.events['encoder']
+        await player_manager.connected.wait()
         # get initial encoder position for delta tracking
         pos = ano.encoder.position
-        vol = ui.volume.volume = await player.volume()
+        vol = ui.volume.volume = await player_manager.player.volume()
 
         while True:
             await ev.wait()
@@ -306,8 +309,8 @@ async def main():
             delta, pos = new_pos - pos, new_pos
 
             # if position changed, update the UI and speaker
-            if delta:
-                vol = ui.volume.volume = await player.volume(vol + delta)
+            if player_manager.is_connected and delta:
+                vol = ui.volume.volume = await player_manager.player.volume(vol + delta)
             ev.clear()
 
     @task_restart('tickle_watchdog')
@@ -318,6 +321,7 @@ async def main():
             await asyncio.sleep(30)
             watchdog.feed()
 
+    print('connecting event handlers')
     # ui tasks
     loop.create_task(_refresh())
     loop.create_task(_status_ip())
@@ -326,16 +330,15 @@ async def main():
     # controls tasks with ui implications
     loop.create_task(_prev())
     loop.create_task(_next())
+    loop.create_task(_play_pause())
+    loop.create_task(_volume())
     # watchdog timer
     loop.create_task(_tickle_watchdog())
 
+    print('connecting to sonos')
     player = await player_manager.load_player()
 
     ui.status_bar.sonos = player.room_name.replace('’', "'")
-
-    print('connecting event handlers')
-    loop.create_task(_play_pause(player, ano.events['select_press']))
-    loop.create_task(_volume())
 
     print('ready')
     while True:
