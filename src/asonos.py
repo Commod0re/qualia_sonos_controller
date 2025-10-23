@@ -10,8 +10,23 @@ import babyxml
 server = biplane.Server()
 serve_task = None
 sonos_client_registry = {}
+sonos_event_registry = {}
 sonos_sid_registry = {}
 sonos_client_sid_registry = {}
+
+
+class EventWithData(asyncio.Event):
+    def __init__(self):
+        super().__init__()
+        self.data = None
+
+    def set(self, data):
+        self.data = data
+        super().set()
+
+    def clear(self):
+        self.data = None
+        super().clear()
 
 
 def htmldecode(text):
@@ -38,15 +53,11 @@ def handle_notify(params, headers, body):
     service = headers['x-sonos-servicetype']
     client = sonos_client_sid_registry[sid, service]
 
-    print(f'handling {service} event from {client}')
-    # print(params)
-    # print(headers)
+    print(f'handling {service} event from {client.ip}:{client.port}')
     body = babyxml.xmltodict(body.decode('utf-8'))
-    # print(body)
     last_change_raw = body['e:propertyset', 0]['e:property', 0]['LastChange', 0]
-    # print(last_change_raw)
-    # print(htmldecode(last_change_raw))
-    print(babyxml.xmltodict(htmldecode(last_change_raw)))
+    last_change = babyxml.xmltodict(htmldecode(last_change_raw))['Event', 0]['InstanceID', 0]
+    sonos_event_registry[sid, service].set(last_change)
     return biplane.Response(b'OK')
 
 
@@ -117,9 +128,12 @@ class Sonos:
             del sonos_client_registry[self.ip]
 
     async def subscribe(self, service):
-        # TODO: hook up an Event
+        global serve_task
+        if serve_task is None:
+            serve_task = asyncio.get_event_loop().create_task(run_server())
+
         sonos_client_registry[self.ip, service] = self
-        url = f'http://{self.ip}:1400{self._service_event_urls[service]}'
+        url = f'http://{self.ip}:{self.port}{self._service_event_urls[service]}'
         headers = {
             'callback': f'<http://{wifi.radio.ipv4_address}:8000/>',
             'NT': 'upnp:event',
@@ -128,7 +142,9 @@ class Sonos:
         resp = await ahttp.request('SUBSCRIBE', url, headers)
         sonos_sid_registry[self.ip, service] = resp.headers['sid']
         sonos_client_sid_registry[resp.headers['sid'], service] = self
+        sonos_event_registry[resp.headers['sid'], service] = ev = EventWithData()
         print(f'subscribed to events with sid={resp.headers["sid"]}')
+        return ev
 
     async def unsubscribe(self, service):
         sid = sonos_sid_registry.pop((self.ip, service))
