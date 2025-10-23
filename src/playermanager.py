@@ -3,6 +3,7 @@ import json
 import os
 import storage
 import traceback
+import wifi
 from adafruit_datetime import datetime, timedelta
 
 import asonos
@@ -11,12 +12,14 @@ import timezone
 
 
 class PlayerManager:
+    @property
+    def is_connected(self):
+        return wifi.radio.connected and self.connected.is_set()
+
     def __init__(self):
         self.player = None
         self.player_name = None
-        self.event_tree = {
-            'player_connected': []
-        }
+        self.connected = asyncio.Event()
 
     @staticmethod
     def init_storage():
@@ -41,11 +44,6 @@ class PlayerManager:
             json.dump({
                 'player_name': self.player.room_name
             })
-
-    def subscribe(self):
-        child_event = asyncio.Event()
-        self.event_tree['player_connected'].append(child_event)
-        return child_event
 
     def _fire_event(self, ev_name):
         for ev in self.event_tree[ev_name]:
@@ -79,7 +77,7 @@ class PlayerManager:
             except Exception as e:
                 print(f'[{datetime.now()}] cache_player failed Exception: {type(e)}({e})')
 
-        self._fire_event('player_connected')
+        self.connected.set()
         return self.player
 
 
