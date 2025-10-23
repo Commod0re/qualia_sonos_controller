@@ -3,7 +3,6 @@ import collections
 import io
 import json
 import os
-import storage
 import traceback
 import time
 import wifi
@@ -15,7 +14,7 @@ import ahttp
 import controls
 import ntp
 import ui
-from playermanager import cache_player, player_from_cache as load_from_cache, discover_sonos
+from playermanager import PlayerManager
 
 
 def fmt_bssid(bssid):
@@ -113,6 +112,8 @@ async def main():
     album_art_uri = None
     player = None
     cur_state = None
+    player_manager = PlayerManager()
+    player_manager.init_storage()
 
     async def _refresh():
         while True:
@@ -328,28 +329,8 @@ async def main():
     # watchdog timer
     loop.create_task(_tickle_watchdog())
 
-    player_from_cache = load_from_cache()
-    if player_from_cache:
-        print('trying player from cache...')
-        try:
-            await player_from_cache.connect()
-        except Exception as e:
-            print(f'[{datetime.now()}] Exception: {type(e)}({e})')
-        else:
-            player = player_from_cache
+    player = await player_manager.load_player()
 
-    if not player:
-        print('locating sonoses')
-        # TODO: monitor players over time
-        # TODO: make this selectable instead of hardcoded
-        players = {'players': {}, 'rooms': {}}
-        ui.status_bar.sonos = 'connecting...'
-        target_room = 'Mike’s Office'
-        while not players['rooms'].get(target_room, {}).get('primary'):
-            await discover_sonos(players)
-
-        player = players['rooms'][target_room]['primary']
-        cache_player(player)
     ui.status_bar.sonos = player.room_name.replace('’', "'")
 
     print('connecting event handlers')

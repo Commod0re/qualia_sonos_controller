@@ -1,4 +1,8 @@
+import asyncio
+import json
 import os
+import storage
+import traceback
 from adafruit_datetime import datetime, timedelta
 
 import asonos
@@ -6,35 +10,110 @@ import ssdp
 import timezone
 
 
+class PlayerManager:
+    def __init__(self):
+        self.player = None
+        self.player_name = None
+        self.event_tree = {
+            'player_connected': []
+        }
+
+    @staticmethod
+    def init_storage():
+        ro = storage.getmount("/").readonly
+        if ro:
+            try:
+                storage.remount("/", readonly=False, disable_concurrent_write_protection=True)
+            except RuntimeError as e:
+                print(f'[{datetime.now()}] failed to remount "/": RuntimeError({e})')
+
+    @staticmethod
+    def load_user_config():
+        try:
+            with open('/user.config', 'r') as f:
+                return json.load(f)
+        except OSError:
+            # no saved user config
+            return {}
+
+    def save_user_config(self):
+        with open('/user.config', 'w') as f:
+            json.dump({
+                'player_name': self.player.room_name
+            })
+
+    def subscribe(self):
+        child_event = asyncio.Event()
+        self.event_tree['player_connected'].append(child_event)
+        return child_event
+
+    def _fire_event(self, ev_name):
+        for ev in self.event_tree[ev_name]:
+            ev.set()
+
+    async def load_player(self):
+        # load from cache
+        cached = player_cache()
+        if cached:
+            try:
+                self.player = await asonos.Sonos.connect(**cached)
+            except Exception as e:
+                print(f'[{datetime.now()}] Exception: {type(e)}({e})')
+                traceback.print_exception(e)
+
+        if not self.player:
+            # loading from cache did not occur so now load the user config
+            print('locating sonoses')
+            user_config = self.load_user_config()
+            target_room = user_config['player_name']
+            players = {'players': {}, 'rooms': {}}
+
+            # TODO: if user_config did not load for any reason
+            #       we need to show a picker UI during scan
+            while not players['rooms'].get(target_room, {}).get('primary'):
+                await discover_sonos(players)
+
+            self.player = players['rooms'][target_room]['primary']
+            try:
+                cache_player(self.player)
+            except Exception as e:
+                print(f'[{datetime.now()}] cache_player failed Exception: {type(e)}({e})')
+
+        self._fire_event('player_connected')
+        return self.player
+
+
 def cache_player(player):
-    ro = storage.getmount("/").readonly
-    if ro:
-        storage.remount("/", readonly=False)
     with open('/player.cache', 'w') as f:
         # dump approximation of ssdp_parsed
         json.dump({
             'ip': player.ip,
             'port': player.port,
-            'base': player.base,
             'household_id': player.household_id,
         }, f)
-    if ro:
-        storage.remount("/", readonly=True)
 
 
-def player_from_cache():
+def player_cache():
     try:
         mtime = timezone.fromlocaltime(os.stat('/player.cache')[8])
         cache_expires = mtime + timedelta(days=30)
         if now <= cache_expires:
             with open('/player.cache', 'r') as f:
-                return asonos.Sonos(**json.load(f))
+                return json.load(f)
     except OSError:
         # no player cache; nothing to do
         pass
 
     # no cache or cache expired
     return None
+
+
+def invalidate_cache():
+    try:
+        os.remove('/player.cache')
+    except OSError:
+        # failed to invalidate cache (probably USB mounted)
+        pass
 
 
 async def discover_sonos(player_map):
@@ -61,12 +140,12 @@ async def discover_sonos(player_map):
             if ('iconList', 0) in device:
                 return device['iconList', 0]
 
-    async def _connect(player):
+    async def _connect(kwargs):
         while True:
             try:
-                await player.connect()
+                player = await asonos.Sonos.connect(**kwargs)
             except asyncio.TimeoutError:
-                print(f'TimeoutError connecting to {player.ip}')
+                print(f'TimeoutError connecting to {kwargs["ip"]}')
             else:
                 break
         room_name = player.room_name
@@ -101,7 +180,7 @@ async def discover_sonos(player_map):
             verb = 'existing'
             if player_id not in player_map['players'] and player_id not in connect_tasks:
                 verb = 'found'
-                connect_tasks[player_id] = asyncio.create_task(_connect(asonos.Sonos(**ssdp_parsed)))
+                connect_tasks[player_id] = asyncio.create_task(_connect(ssdp_parsed))
             print(f'{verb} player at {ssdp_parsed["ip"]}')
     discoverer.close()
 
