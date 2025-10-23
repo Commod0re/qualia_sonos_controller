@@ -88,6 +88,10 @@ class TrackInfo(Widget):
         self._next_indicator.anchor_point = (1.0, 0.5)
         self._next_indicator.anchored_position = (self.width, ay)
 
+        self._play_pause_indicator = label.Label(terminalio.FONT, text='', scale=4)
+        self._play_pause_indicator.anchor_point = (0.5, 0.5)
+        self._play_pause_indicator.anchored_position = (ax, ay)
+
         self.append(self._tg)
         self.append(self._artist_lbl)
         self.append(self._album_lbl)
@@ -95,15 +99,22 @@ class TrackInfo(Widget):
         self.append(self._media_lbl)
         self.append(self._prev_indicator)
         self.append(self._next_indicator)
+        self.append(self._play_pause_indicator)
 
     def show_icon(self, name):
         if name == 'prev':
             self._prev_indicator.text = '<<'
         elif name == 'next':
             self._next_indicator.text = '>>'
+        elif name == 'play':
+            self._play_pause_indicator.text = '|>'
+        elif name == 'pause':
+            self._play_pause_indicator.text = '||'
 
     def hide_icon(self, name):
         if name == 'prev':
             self._prev_indicator.text = ''
         elif name == 'next':
             self._next_indicator.text = ''
+        elif name in {'play', 'pause'}:
+            self._play_pause_indicator.text = ''

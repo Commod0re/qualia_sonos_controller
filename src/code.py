@@ -288,11 +288,15 @@ async def main():
             if player_manager.is_connected:
                 cur_state = await player_manager.player.state()
                 if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
-                    print('PLAY')
+                    ui.track_info.show_icon('play')
                     await player_manager.player.play()
+                    ui.track_info.hide_icon('play')
+                    cur_state = 'PLAYING'
                 else:
-                    print('PAUSE')
+                    ui.track_info.show_icon('pause')
                     await player_manager.player.pause()
+                    ui.track_info.hide_icon('pause')
+                    cur_state = 'PAUSED_PLAYBACK'
 
     @task_restart('volume')
     async def _volume():
