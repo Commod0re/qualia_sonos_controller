@@ -81,8 +81,7 @@ class Response:
         self._xml = None
 
     @classmethod
-    def from_response(cls, request, status, headers, body):
-        httpver, status_code, reason = status.split(' ', 2)
+    def from_response(cls, request, httpver, status_code, reason, headers, body):
         content_mime, *params = headers.get('content-type', 'application/octet-stream').split(';')
         charset = None
         if content_mime.startswith('text/') or content_mime in TEXT_MIMES:
@@ -227,13 +226,15 @@ async def request(verb, url, headers, body=None):
     # read status line and headers
     # this often also starts to read the body
     status, headers, body_buf = await _read_headers(sock)
+    httpver, status_code, reason = status.split(' ', 2)
+    status_code = int(status_code)
     # read the rest of the body
-    body_buf = await _read_body(sock, body_buf, headers)
+    body_buf = await _read_body(sock, body_buf, status_code, headers)
 
     if DEBUG:
         reqs_in_flight.remove(tag)
 
-    return Response.from_response(request_info, status, headers, body_buf)
+    return Response.from_response(request_info, httpver, status_code, reason, headers, body_buf)
 
 
 async def _aread(read_buf, buf, sock):
@@ -284,7 +285,7 @@ async def _read_headers(sock):
     return status, headers, body
 
 
-async def _read_body(sock, body_buf, headers):
+async def _read_body(sock, body_buf, status_code, headers):
     # read body
     if 'chunked' in headers.get('transfer-encoding', ''):
         # raise NotImplementedError('transfer-encoding: chunked')
@@ -313,16 +314,23 @@ async def _read_body(sock, body_buf, headers):
             # make sure to consume the CRLF trailer too
             body_buf += already_read[:chunk_len]
             already_read = already_read[chunk_len + 2:]
-
     else:
-        # if content-encoding is not chunked then we can use content-length
+        if status_code == '204':
+            content_length = 0
+        elif 'content-length' in headers:
+            content_length = int(headers['content-length'])
+        else:
+            content_length = None
+        # if content-encoding is not chunked then we (usually) can use content-length
         # to figure out when we're done reading
-        content_length = int(headers['content-length'])
         read_buf = bytearray(1024)
-        while len(body_buf) < content_length:
-            await _aread(read_buf, body_buf, sock)
-            # concurrency point
-            await asyncio.sleep(0)
+        if content_length is not None:
+            while len(body_buf) < content_length:
+                await _aread(read_buf, body_buf, sock)
+                await asyncio.sleep(0)
+        else:
+            while (await _aread(read_buf, body_buf, sock)) > 0:
+                await asyncio.sleep(0)
 
     # done reading body; close the socket
     sock.close()
