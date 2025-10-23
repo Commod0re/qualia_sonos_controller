@@ -12,6 +12,7 @@ from watchdog import WatchDogMode
 
 import ahttp
 import controls
+import event
 import ntp
 import ui
 from playermanager import PlayerManager
@@ -108,8 +109,7 @@ async def main():
     print('setting up controls')
     ano = await controls.AnoRotary.new(ui.i2c)
     qbtns = await controls.QualiaButtons.new(ui.i2c)
-    album_art_changed = asyncio.Event()
-    album_art_uri = None
+    album_art_changed = event.EventWithData()
     cur_state = None
     player_manager = PlayerManager()
     player_manager.init_storage()
@@ -169,7 +169,6 @@ async def main():
 
     @task_restart('track_info')
     async def _track_info():
-        nonlocal album_art_uri
         # TODO: replace polling with events
         track = {
             'title': ui.track_info.track_name,
@@ -226,7 +225,7 @@ async def main():
                                     # modify some arguments
                                     .replace('?w=200&auto=format,compress?w=200', '?w=400&fm=jpg&jpeg-progressive=false')
                                     .replace('&auto=format,compress', ''))
-                        album_art_changed.set()
+                            album_art_changed.set(album_art_uri)
                     # TODO: this could be a background task or a separate handler triggered via event
                     # update media title
                     if track_changed:
@@ -246,8 +245,9 @@ async def main():
     @task_restart('album_art')
     async def _album_art():
         while True:
-            await album_art_changed.wait()
+            album_art_uri = await album_art_changed.wait()
             album_art_changed.clear()
+
             if album_art_uri:
                 print(f'loading album_art from {album_art_uri}')
                 resp = None
