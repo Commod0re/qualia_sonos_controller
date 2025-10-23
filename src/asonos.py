@@ -86,39 +86,35 @@ class Sonos:
     def room_name(self):
         return self.device_info['device', 0]['roomName', 0]
 
-    def __init__(self, ip, **kwargs):
+    def __init__(self, ip, port, device_info, household_id):
         self._ip = ip
-        self._port = kwargs.get('port', 1400)
-        # stuff we might have up front
-        # if we got here from UPnP or cache
-        self._base = kwargs.get('base') or f'http://{ip}:{self.port}'
-        self._device_info = kwargs.get('device_info')
+        self._port = port
+        self._base = f'http://{ip}:{self.port}' #kwargs.get('base') or f'http://{ip}:{self.port}'
+        self._device_info = device_info
         self._zone_attrs = {}
-        self._household_id = kwargs.get('household_id')
-        self._service_urls = kwargs.get('service_urls', {})
-        self._service_schemas = kwargs.get('service_schemas', {})
-        self._service_event_urls = kwargs.get('service_event_urls', {})
+        self._household_id = household_id
+        self._service_urls = {}
+        self._service_schemas = {}
+        self._service_event_urls = {}
+
+    @classmethod
+    async def connect(cls, ip, port=1400, household_id=None, **kwargs):
+        # get device_info
+        device_info = await cls.get_device_info(ip, port)
+
+        # create Sonos instance
+        player = cls(ip, port, device_info, household_id)
+
+        # map service urls and get zone attributes and then return
+        await asyncio.gather(
+            player.map_services(),
+            player.get_zone_attrs(),
+        )
+        return player
 
     def __del__(self):
         if sonos_client_registry.get(self.ip) is self:
             del sonos_client_registry[self.ip]
-
-    async def connect(self):
-        # load device info if needed
-        # this must come before anything that calls self._upnp_control
-        if not self.device_info:
-            self._device_info = await self.get_device_info()
-
-        tasks = []
-        # map service urls if needed
-        if not self._service_urls:
-            tasks.append(self._map_services())
-
-        # get zone attrs if needed
-        if not self._zone_attrs:
-            tasks.append(self._get_zone_attrs())
-
-        await asyncio.gather(*tasks)
 
     async def subscribe(self, service):
         # TODO: hook up an Event
@@ -146,12 +142,13 @@ class Sonos:
         print(resp.headers)
         print(resp.body)
 
-    async def get_device_info(self):
-        url = f'http://{self.ip}:1400/xml/device_description.xml'
+    @classmethod
+    async def get_device_info(cls, ip, port):
+        url = f'http://{ip}:{port}/xml/device_description.xml'
         resp = await ahttp.get(url, {}, None)
         return resp.xml()['root', 0]
 
-    async def _map_services(self):
+    async def map_services(self):
         def map_service(service):
             name = service['serviceType', 0].split(':service:')[1].split(':')[0]
             self._service_urls[name] = service['controlURL', 0]
@@ -175,7 +172,7 @@ class Sonos:
             for service in service_list(device):
                 map_service(service)
 
-    async def _get_zone_attrs(self):
+    async def get_zone_attrs(self):
         attrs = await self.get_zone_group_attributes()
         # guaranteed to exist
         if not self._household_id:
@@ -306,22 +303,3 @@ class Sonos:
                 'queue_position': offset + idx,
             })
         return queue
-
-
-
-
-# testing
-# loop = asyncio.new_event_loop()
-# sonos = Sonos('10.0.3.0')
-# loop.run_until_complete(sonos.connect())
-# print(sonos._service_event_urls.keys())
-# loop.run_until_complete(sonos.subscribe('AVTransport'))
-# loop.create_task(run_server())
-# loop.run_forever()
-
-
-# def upnp(service, action, **arguments):
-#     return loop.run_until_complete(sonos._upnp_control(service, action, **arguments))
-
-
-# print(upnp('AVTransport', 'GetPositionInfo', InstanceID=0))
