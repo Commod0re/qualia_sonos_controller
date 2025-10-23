@@ -21,6 +21,17 @@ class PlayerManager:
         self.player_name = None
         self.connected = asyncio.Event()
         self.callback_events = {}
+        self._maintain_subscription_task = None
+
+    async def maintain_upnp_subscription(self):
+        await self.connected.wait()
+        while True:
+            # wait 59 minutes and then refresh
+            await asyncio.sleep(3540)
+            # refresh all subscriptions
+            await asyncio.gather(*(
+                self.player.refresh_subscription(svc) for svc in self.callback_events
+            ))
 
     @staticmethod
     def init_storage():
@@ -47,6 +58,8 @@ class PlayerManager:
             }, f)
 
     async def load_player(self):
+        if self._maintain_subscription_task is None:
+            self._maintain_subscription_task = asyncio.get_event_loop().create_task(self.maintain_upnp_subscription())
         # load from cache
         cached = player_cache()
         if cached:
