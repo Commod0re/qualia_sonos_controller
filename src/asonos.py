@@ -114,7 +114,7 @@ class Sonos:
         if sonos_client_registry.get(self.ip) is self:
             del sonos_client_registry[self.ip]
 
-    async def subscribe(self, service):
+    async def subscribe(self, service, _event=None):
         global serve_task
         if serve_task is None:
             serve_task = asyncio.get_event_loop().create_task(run_server())
@@ -129,7 +129,7 @@ class Sonos:
         resp = await ahttp.request('SUBSCRIBE', url, headers)
         sonos_sid_registry[self.ip, service] = resp.headers['sid']
         sonos_client_sid_registry[resp.headers['sid'], service] = self
-        sonos_event_registry[resp.headers['sid'], service] = ev = event.EventWithData()
+        sonos_event_registry[resp.headers['sid'], service] = ev = (_event or event.EventWithData())
         print(f'subscribed to events with sid={resp.headers["sid"]}')
         return ev
 
@@ -137,13 +137,21 @@ class Sonos:
         sid = sonos_sid_registry.pop((self.ip, service))
         del sonos_client_registry[self.ip, service]
         del sonos_client_sid_registry[sid, service]
+        del sonos_event_registry[sid, service]
         headers = {
             'SID': sid,
         }
         url = f'http://{self.ip}:1400{self._service_event_urls[service]}'
         resp = await ahttp.request('UNSUBSCRIBE', url, headers)
-        print(resp.headers)
-        print(resp.body)
+        print(f'unsubscribed from events with sid={sid}')
+
+    async def refresh_subscription(self, service):
+        sid = sonos_sid_registry[self.ip, service]
+        event = sonos_event_registry[sid, service]
+        await asyncio.gather(
+            self.unsubscribe(service),
+            self.subscribe(service, event)
+        )
 
     @classmethod
     async def get_device_info(cls, ip, port):
