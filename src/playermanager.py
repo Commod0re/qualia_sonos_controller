@@ -43,7 +43,7 @@ class PlayerManager:
         with open('/user.config', 'w') as f:
             json.dump({
                 'player_name': self.player.room_name
-            })
+            }, f)
 
     def _fire_event(self, ev_name):
         for ev in self.event_tree[ev_name]:
@@ -95,7 +95,7 @@ def player_cache():
     try:
         mtime = timezone.fromlocaltime(os.stat('/player.cache')[8])
         cache_expires = mtime + timedelta(days=30)
-        if now <= cache_expires:
+        if datetime.now() <= cache_expires:
             with open('/player.cache', 'r') as f:
                 return json.load(f)
     except OSError:
