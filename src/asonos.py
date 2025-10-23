@@ -149,8 +149,8 @@ class Sonos:
         sid = sonos_sid_registry[self.ip, service]
         event = sonos_event_registry[sid, service]
         await asyncio.gather(
+            self.subscribe(service, event),
             self.unsubscribe(service),
-            self.subscribe(service, event)
         )
 
     @classmethod
