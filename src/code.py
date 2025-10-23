@@ -146,6 +146,27 @@ async def main():
             # waited the full duration
             pass
 
+    @task_restart('avtransport_event_handler')
+    async def _avtransport():
+        nonlocal cur_state
+        await player_manager.connected.wait()
+        ev = player_manager.callback_events['AVTransport']
+
+        # position, duration = ui.play_progress.play_position, ui.play_progress.track_duration
+        while True:
+            await ev.wait()
+            last_change = ev.data
+            ev.clear()
+
+            # update player state
+            cur_state = last_change['TransportState_attrs', 0]['val']
+            # TODO: update current play position
+            # update current track duration
+            ui.play_progress.track_duration = last_change['CurrentTrackDuration_attrs', 0]['val']
+            # TODO: update current track info
+            # TODO: update current medium info
+            # TODO: update album art uri
+
     @task_restart('track_info')
     async def _track_info():
         nonlocal album_art_uri
@@ -279,24 +300,20 @@ async def main():
 
     @task_restart('play_pause')
     async def _play_pause():
-        nonlocal cur_state
         on_select_press = ano.events['select_press']
         while True:
             await on_select_press.wait()
             on_select_press.clear()
 
             if player_manager.is_connected:
-                cur_state = await player_manager.player.state()
                 if cur_state in {'STOPPED', 'PAUSED_PLAYBACK'}:
                     ui.track_info.show_icon('play')
                     await player_manager.player.play()
                     ui.track_info.hide_icon('play')
-                    cur_state = 'PLAYING'
                 else:
                     ui.track_info.show_icon('pause')
                     await player_manager.player.pause()
                     ui.track_info.hide_icon('pause')
-                    cur_state = 'PAUSED_PLAYBACK'
 
     @task_restart('volume')
     async def _volume():
@@ -328,6 +345,8 @@ async def main():
     print('connecting event handlers')
     # ui tasks
     loop.create_task(_refresh())
+    loop.create_task(_avtransport())
+    # loop.create_task(_player_state())
     loop.create_task(_status_ip())
     loop.create_task(_track_info())
     loop.create_task(_album_art())
