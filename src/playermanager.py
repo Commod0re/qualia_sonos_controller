@@ -26,8 +26,8 @@ class PlayerManager:
     async def maintain_upnp_subscription(self):
         await self.connected.wait()
         while True:
-            # wait 59 minutes and then refresh
-            await asyncio.sleep(3540)
+            # wait 5 minutes and then refresh
+            await asyncio.sleep(60)
             # refresh all subscriptions
             await asyncio.gather(*(
                 self.player.refresh_subscription(svc) for svc in self.callback_events

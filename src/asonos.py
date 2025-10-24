@@ -114,22 +114,21 @@ class Sonos:
         if sonos_client_registry.get(self.ip) is self:
             del sonos_client_registry[self.ip]
 
-    async def subscribe(self, service, _event=None):
+    async def subscribe(self, service):
         global serve_task
         if serve_task is None:
             serve_task = asyncio.get_event_loop().create_task(run_server())
 
         sonos_client_registry[self.ip, service] = self
-        url = f'http://{self.ip}:{self.port}{self._service_event_urls[service]}'
         headers = {
             'callback': f'<http://{wifi.radio.ipv4_address}:8000/>',
             'NT': 'upnp:event',
-            'Timeout': 'Second-3600',
+            'Timeout': 'Second-300',
         }
         resp = await ahttp.request('SUBSCRIBE', url, headers)
         sonos_sid_registry[self.ip, service] = resp.headers['sid']
         sonos_client_sid_registry[resp.headers['sid'], service] = self
-        sonos_event_registry[resp.headers['sid'], service] = ev = (_event or event.EventWithData())
+        sonos_event_registry[resp.headers['sid'], service] = ev = event.EventWithData()
         print(f'subscribed to events with sid={resp.headers["sid"]}')
         return ev
 
@@ -141,17 +140,19 @@ class Sonos:
         headers = {
             'SID': sid,
         }
-        url = f'http://{self.ip}:1400{self._service_event_urls[service]}'
-        resp = await ahttp.request('UNSUBSCRIBE', url, headers)
+        url = f'{self.base}{self._service_event_urls[service]}'
+        await ahttp.request('UNSUBSCRIBE', url, headers)
         print(f'unsubscribed from events with sid={sid}')
 
     async def refresh_subscription(self, service):
         sid = sonos_sid_registry[self.ip, service]
-        event = sonos_event_registry[sid, service]
-        await asyncio.gather(
-            self.subscribe(service, event),
-            self.unsubscribe(service),
-        )
+        url = f'{self.base}{self._service_event_urls[service]}'
+        headers = {
+            'SID': sid,
+            'Timeout': 'Second-300',
+        }
+        await ahttp.request('SUBSCRIBE', url, headers)
+        print(f'refreshed subscription with sid={sid}')
 
     @classmethod
     async def get_device_info(cls, ip, port):
