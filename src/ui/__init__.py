@@ -17,20 +17,23 @@ from .widgets.volume import Volume
 displayio.release_displays()
 tft_pins = dict(board.TFT_PINS)
 tft_timings = {
-    "frequency": 16000000,
+    "frequency": 16_000_000,
     "width": 720,
     "height": 720,
+
     "hsync_pulse_width": 2,
     "hsync_front_porch": 46,
     "hsync_back_porch": 44,
+    "hsync_idle_low": False,
+
     "vsync_pulse_width": 2,
     "vsync_front_porch": 16,
     "vsync_back_porch": 18,
-    "hsync_idle_low": False,
     "vsync_idle_low": False,
-    "de_idle_high": False,
-    "pclk_active_high": False,
+
+    "pclk_active_high": True,
     "pclk_idle_high": False,
+    "de_idle_high": False,
 }
 init_sequence_tl040hds20 = bytes()
 
