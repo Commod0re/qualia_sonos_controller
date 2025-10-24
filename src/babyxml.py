@@ -19,41 +19,26 @@ def _tokenator(xml):
 def safe_dict_insert(d, keypath, value):
     cur = d
     end = keypath[-1]
-    for i, key in enumerate(keypath):
-        if key in cur:
-            cur = cur[key]
-        else:
-            if key == end:
-                if key in cur:
-                    print(f'WARN: {keypath} exists')
-                cur[key] = value
-            else:
-                cur[key] = {}
-                cur = cur[key]
+    for key in keypath[:-1]:
+        cur = cur.setdefault(key, {})
+    cur[end] = value
 
 
 def deep_key_exists(d, keypath):
     cur = d
-    for key in keypath:
-        if isinstance(cur, dict) and key not in cur:
-            return False
-        elif isinstance(cur, list) and len(cur) <= key:
-            return False
-        cur = cur[key]
+    try:
+        for key in keypath:
+            cur = cur[key]
+    except (KeyError, IndexError):
+        return False
 
     return True
 
 
-def get_deep_key(d, keypath, default=None):
+def get_deep_key(d, keypath):
     cur = d
     for key in keypath:
-        if key in cur:
-            cur = cur[key]
-        else:
-            if default is not None:
-                return default
-            else:
-                raise KeyError(keypath)
+        cur = cur.get(key, {})
     return cur
 
 
@@ -82,7 +67,7 @@ def _nest(tokens):
         if token.startswith('<') and not token.startswith('</'):
             tag_body = token[1:-1].split(' ', 1)
             name = tag_body[0]
-            idx = sum(1 for k in get_deep_key(doc, path, {}) if k[0] == name)
+            idx = sum(1 for k in get_deep_key(doc, path) if k[0] == name)
 
             if len(tag_body) == 2:
                 attrs = parse_attrs(tag_body[1])
