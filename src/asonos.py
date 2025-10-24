@@ -120,6 +120,7 @@ class Sonos:
             serve_task = asyncio.get_event_loop().create_task(run_server())
 
         sonos_client_registry[self.ip, service] = self
+        url = f'{self.base}{self._service_event_urls[service]}'
         headers = {
             'callback': f'<http://{wifi.radio.ipv4_address}:8000/>',
             'NT': 'upnp:event',
